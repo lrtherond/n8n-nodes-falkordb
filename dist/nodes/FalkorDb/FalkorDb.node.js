@@ -57,10 +57,16 @@ class FalkorDb {
                     },
                     options: [
                         {
-                            name: 'Create',
+                            name: 'List',
+                            value: 'list',
+                            description: 'List all graphs',
+                            action: 'List graphs',
+                        },
+                        {
+                            name: 'Create & Execute Query',
                             value: 'create',
-                            description: 'Create a new graph',
-                            action: 'Create a graph',
+                            description: 'Create a graph and execute a query',
+                            action: 'Create graph and execute query',
                         },
                         {
                             name: 'Delete',
@@ -69,10 +75,16 @@ class FalkorDb {
                             action: 'Delete a graph',
                         },
                         {
-                            name: 'List',
-                            value: 'list',
-                            description: 'List all graphs',
-                            action: 'List graphs',
+                            name: 'Count',
+                            value: 'count',
+                            description: 'Get graph node count',
+                            action: 'Get graph count',
+                        },
+                        {
+                            name: 'Duplicate',
+                            value: 'duplicate',
+                            description: 'Duplicate a graph',
+                            action: 'Duplicate a graph',
                         },
                     ],
                     default: 'list',
@@ -94,12 +106,6 @@ class FalkorDb {
                             description: 'Execute a Cypher query',
                             action: 'Execute a query',
                         },
-                        {
-                            name: 'Explain',
-                            value: 'explain',
-                            description: 'Explain a query execution plan',
-                            action: 'Explain a query',
-                        },
                     ],
                     default: 'execute',
                 },
@@ -115,25 +121,13 @@ class FalkorDb {
                     },
                     options: [
                         {
-                            name: 'Get',
-                            value: 'get',
-                            description: 'Get graph schema',
-                            action: 'Get schema',
-                        },
-                        {
-                            name: 'Create Index',
-                            value: 'createIndex',
-                            description: 'Create an index on a property',
-                            action: 'Create index',
-                        },
-                        {
-                            name: 'Drop Index',
-                            value: 'dropIndex',
-                            description: 'Drop an index',
-                            action: 'Drop index',
+                            name: 'Query',
+                            value: 'query',
+                            description: 'Execute a Cypher query against schema',
+                            action: 'Query schema',
                         },
                     ],
-                    default: 'get',
+                    default: 'query',
                 },
                 {
                     displayName: 'Graph Name',
@@ -155,11 +149,56 @@ class FalkorDb {
                     type: 'string',
                     required: true,
                     default: '',
-                    description: 'Name of the graph to create or delete',
+                    description: 'Name of the graph to operate on',
                     displayOptions: {
                         show: {
                             resource: ['graph'],
-                            operation: ['create', 'delete'],
+                            operation: ['create', 'delete', 'count'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Cypher Query',
+                    name: 'createQuery',
+                    type: 'string',
+                    typeOptions: {
+                        rows: 4,
+                    },
+                    required: true,
+                    default: 'RETURN 1',
+                    description: 'Cypher query to execute when creating the graph',
+                    displayOptions: {
+                        show: {
+                            resource: ['graph'],
+                            operation: ['create'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Source Graph Name',
+                    name: 'sourceGraphName',
+                    type: 'string',
+                    required: true,
+                    default: '',
+                    description: 'Name of the source graph to duplicate',
+                    displayOptions: {
+                        show: {
+                            resource: ['graph'],
+                            operation: ['duplicate'],
+                        },
+                    },
+                },
+                {
+                    displayName: 'Destination Graph Name',
+                    name: 'destinationGraphName',
+                    type: 'string',
+                    required: true,
+                    default: '',
+                    description: 'Name of the destination graph',
+                    displayOptions: {
+                        show: {
+                            resource: ['graph'],
+                            operation: ['duplicate'],
                         },
                     },
                 },
@@ -176,73 +215,24 @@ class FalkorDb {
                     displayOptions: {
                         show: {
                             resource: ['query'],
-                            operation: ['execute', 'explain'],
+                            operation: ['execute'],
                         },
                     },
                 },
                 {
-                    displayName: 'Parameters',
-                    name: 'parameters',
-                    type: 'fixedCollection',
+                    displayName: 'Cypher Query',
+                    name: 'schemaQuery',
+                    type: 'string',
                     typeOptions: {
-                        multipleValues: true,
+                        rows: 4,
                     },
-                    default: {},
-                    description: 'Parameters for the Cypher query',
-                    options: [
-                        {
-                            name: 'parameter',
-                            displayName: 'Parameter',
-                            values: [
-                                {
-                                    displayName: 'Name',
-                                    name: 'name',
-                                    type: 'string',
-                                    default: '',
-                                    description: 'Parameter name',
-                                },
-                                {
-                                    displayName: 'Value',
-                                    name: 'value',
-                                    type: 'string',
-                                    default: '',
-                                    description: 'Parameter value',
-                                },
-                            ],
-                        },
-                    ],
-                    displayOptions: {
-                        show: {
-                            resource: ['query'],
-                            operation: ['execute', 'explain'],
-                        },
-                    },
-                },
-                {
-                    displayName: 'Label',
-                    name: 'label',
-                    type: 'string',
                     required: true,
                     default: '',
-                    description: 'Node label for the index',
+                    description: 'Cypher query to execute against schema',
                     displayOptions: {
                         show: {
                             resource: ['schema'],
-                            operation: ['createIndex', 'dropIndex'],
-                        },
-                    },
-                },
-                {
-                    displayName: 'Property',
-                    name: 'property',
-                    type: 'string',
-                    required: true,
-                    default: '',
-                    description: 'Property name for the index',
-                    displayOptions: {
-                        show: {
-                            resource: ['schema'],
-                            operation: ['createIndex', 'dropIndex'],
+                            operation: ['query'],
                         },
                     },
                 },
@@ -259,13 +249,6 @@ class FalkorDb {
                             type: 'number',
                             default: 30000,
                             description: 'Request timeout in milliseconds',
-                        },
-                        {
-                            displayName: 'Read Only',
-                            name: 'readOnly',
-                            type: 'boolean',
-                            default: false,
-                            description: 'Whether to execute query in read-only mode',
                         },
                     ],
                 },
@@ -298,87 +281,82 @@ class FalkorDb {
                 }
                 if (resource === 'graph') {
                     if (operation === 'list') {
-                        requestOptions.url = `${baseUrl}/api/graphs`;
+                        requestOptions.url = `${baseUrl}/api/graph`;
                         requestOptions.method = 'GET';
                     }
                     else if (operation === 'create') {
                         const graphName = this.getNodeParameter('graphName', i);
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}`;
-                        requestOptions.method = 'POST';
+                        const createQuery = this.getNodeParameter('createQuery', i);
+                        const encodedQuery = encodeURIComponent(createQuery);
+                        requestOptions.url = `${baseUrl}/api/graph/${graphName}?query=${encodedQuery}`;
+                        requestOptions.method = 'GET';
                     }
                     else if (operation === 'delete') {
                         const graphName = this.getNodeParameter('graphName', i);
                         requestOptions.url = `${baseUrl}/api/graph/${graphName}`;
                         requestOptions.method = 'DELETE';
                     }
+                    else if (operation === 'count') {
+                        const graphName = this.getNodeParameter('graphName', i);
+                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/count`;
+                        requestOptions.method = 'GET';
+                    }
+                    else if (operation === 'duplicate') {
+                        const sourceGraphName = this.getNodeParameter('sourceGraphName', i);
+                        const destinationGraphName = this.getNodeParameter('destinationGraphName', i);
+                        requestOptions.url = `${baseUrl}/api/graph/${destinationGraphName}?sourceName=${sourceGraphName}`;
+                        requestOptions.method = 'POST';
+                    }
                 }
                 else if (resource === 'query') {
                     const graphName = this.getNodeParameter('graphName', i);
                     const cypherQuery = this.getNodeParameter('cypherQuery', i);
-                    const parameters = this.getNodeParameter('parameters', i, {});
-                    const readOnly = additionalOptions['readOnly'] || false;
-                    const queryParams = {
-                        query: cypherQuery,
-                    };
-                    if (parameters['parameter'] && Array.isArray(parameters['parameter'])) {
-                        const paramObj = {};
-                        for (const param of parameters['parameter']) {
-                            paramObj[param.name] = param.value;
-                        }
-                        queryParams['parameters'] = paramObj;
-                    }
-                    if (readOnly) {
-                        queryParams['readonly'] = true;
-                    }
                     if (operation === 'execute') {
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/query`;
-                        requestOptions.method = 'POST';
-                        requestOptions.body = queryParams;
-                    }
-                    else if (operation === 'explain') {
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/explain`;
-                        requestOptions.method = 'POST';
-                        requestOptions.body = queryParams;
+                        const encodedQuery = encodeURIComponent(cypherQuery);
+                        requestOptions.url = `${baseUrl}/api/graph/${graphName}?query=${encodedQuery}`;
+                        requestOptions.method = 'GET';
                     }
                 }
                 else if (resource === 'schema') {
                     const graphName = this.getNodeParameter('graphName', i);
-                    if (operation === 'get') {
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/schema`;
+                    if (operation === 'query') {
+                        const schemaQuery = this.getNodeParameter('schemaQuery', i);
+                        const encodedQuery = encodeURIComponent(schemaQuery);
+                        requestOptions.url = `${baseUrl}/api/graph/${graphName}?query=${encodedQuery}`;
                         requestOptions.method = 'GET';
-                    }
-                    else if (operation === 'createIndex') {
-                        const label = this.getNodeParameter('label', i);
-                        const property = this.getNodeParameter('property', i);
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/index`;
-                        requestOptions.method = 'POST';
-                        requestOptions.body = {
-                            label,
-                            property,
-                        };
-                    }
-                    else if (operation === 'dropIndex') {
-                        const label = this.getNodeParameter('label', i);
-                        const property = this.getNodeParameter('property', i);
-                        requestOptions.url = `${baseUrl}/api/graph/${graphName}/index`;
-                        requestOptions.method = 'DELETE';
-                        requestOptions.body = {
-                            label,
-                            property,
-                        };
                     }
                 }
                 const responseData = await this.helpers.httpRequest(requestOptions);
+                let parsedResponse;
+                let metadata = [];
+                if (responseData && typeof responseData === 'object' && 'result' in responseData) {
+                    const result = responseData.result;
+                    parsedResponse = {
+                        data: result.data || [],
+                        queryMetadata: result.metadata || [],
+                    };
+                    metadata = result.metadata || [];
+                }
+                else {
+                    parsedResponse = responseData;
+                }
                 const executionData = {
                     json: {
-                        ...responseData,
+                        ...parsedResponse,
                         _metadata: {
                             resource,
                             operation,
                             graphName: resource !== 'graph' || operation !== 'list'
                                 ? this.getNodeParameter('graphName', i, '')
                                 : undefined,
+                            sourceGraphName: resource === 'graph' && operation === 'duplicate'
+                                ? this.getNodeParameter('sourceGraphName', i, '')
+                                : undefined,
+                            destinationGraphName: resource === 'graph' && operation === 'duplicate'
+                                ? this.getNodeParameter('destinationGraphName', i, '')
+                                : undefined,
                             timestamp: new Date().toISOString(),
+                            queryMetadata: metadata,
                         },
                     },
                     pairedItem: {
