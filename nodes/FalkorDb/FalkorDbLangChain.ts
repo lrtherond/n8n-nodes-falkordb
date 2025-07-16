@@ -72,7 +72,12 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		this.outputKey = config.outputKey || 'output';
 		this.returnMessages = config.returnMessages || false;
 		this.httpRequest = config.httpRequest;
-		this.logger = config.logger || { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+		this.logger = config.logger || {
+			debug: () => {},
+			info: () => {},
+			warn: () => {},
+			error: () => {},
+		};
 	}
 
 	async loadMemoryVariables(_values: InputValues): Promise<MemoryVariables> {
@@ -213,7 +218,13 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 
 		try {
 			// Get authentication session cookies
-			const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest, this.logger);
+			const cookies = await getSessionCookies(
+				baseURL,
+				username,
+				password,
+				this.httpRequest,
+				this.logger,
+			);
 
 			const endpoint = `/api/graph/${graphName}`;
 
@@ -295,7 +306,12 @@ export class FalkorDbVectorStore extends VectorStore {
 		this._distanceMetric = config.distanceMetric || 'cosine';
 		this.similarityThreshold = config.similarityThreshold || 0.7;
 		this.httpRequest = config.httpRequest;
-		this.logger = config.logger || { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+		this.logger = config.logger || {
+			debug: () => {},
+			info: () => {},
+			warn: () => {},
+			error: () => {},
+		};
 	}
 
 	async addDocuments(documents: Document[]): Promise<void> {
@@ -492,7 +508,13 @@ export class FalkorDbVectorStore extends VectorStore {
 
 		try {
 			// Get authentication session cookies
-			const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest, this.logger);
+			const cookies = await getSessionCookies(
+				baseURL,
+				username,
+				password,
+				this.httpRequest,
+				this.logger,
+			);
 
 			const endpoint = `/api/graph/${graphName}`;
 
@@ -692,4 +714,3 @@ export function logWrapper(instance: any, _context: any): any {
 		},
 	});
 }
-
