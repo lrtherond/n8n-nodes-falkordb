@@ -68,6 +68,10 @@ export class FalkorDbApi implements ICredentialType {
 				'={{$credentials.ssl ? "https" : "http"}}://{{$credentials.host}}:{{$credentials.port}}',
 			url: '/api/auth/providers',
 			method: 'GET',
+			auth: {
+				username: '={{$credentials.username}}',
+				password: '={{$credentials.password}}',
+			},
 		},
 	};
 }
