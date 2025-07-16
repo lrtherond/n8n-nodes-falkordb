@@ -1,5 +1,7 @@
 # n8n-nodes-falkordb
 
+> ⚠️ **Development Warning**: This package is currently under active development and should **NOT** be used in production environments. Features may be incomplete, unstable, or subject to breaking changes without notice.
+
 This is an n8n community node package that provides comprehensive integration with FalkorDB, a graph database that supports Cypher queries and AI workflows.
 
 [FalkorDB](https://falkordb.com) is a graph database that provides a Redis-compatible interface while supporting advanced graph operations through Cypher query language and vector similarity search.
@@ -162,6 +164,73 @@ CREATE (c)-[:CONTAINS]->(d:Document {
 - [Cypher Query Language](https://neo4j.com/docs/cypher-manual/current/)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
 - [LangChain Integration](https://docs.langchain.com/docs/)
+
+## Development
+
+### Build Instructions
+
+To build the package for development or publishing:
+
+```bash
+# Install dependencies
+npm install
+
+# Build the package (compiles TypeScript and copies assets)
+npm run build
+
+# Run linting checks
+npm run lint
+
+# Auto-fix linting issues
+npm run lintfix
+
+# Format code
+npm run format
+
+# Development with watch mode
+npm run dev
+```
+
+### Publishing to npm
+
+To prepare and publish this package to npm:
+
+1. **Ensure all tests pass and code is clean:**
+   ```bash
+   npm run build
+   npm run lint
+   npm run format
+   ```
+
+2. **Update version in package.json:**
+   ```bash
+   npm version patch  # for bug fixes
+   npm version minor  # for new features
+   npm version major  # for breaking changes
+   ```
+
+3. **Run pre-publish checks:**
+   ```bash
+   npm run prepublishOnly
+   ```
+
+4. **Publish to npm:**
+   ```bash
+   npm publish
+   ```
+
+   For first-time publishing, you may need to login:
+   ```bash
+   npm login
+   npm publish
+   ```
+
+### Development Guidelines
+
+- All code must pass ESLint checks with n8n community standards
+- TypeScript compilation must be error-free
+- Follow existing code patterns and n8n conventions
+- Test all node operations thoroughly before publishing
 
 ## License
 

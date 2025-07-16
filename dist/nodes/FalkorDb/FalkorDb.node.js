@@ -57,10 +57,10 @@ class FalkorDb {
                     },
                     options: [
                         {
-                            name: 'List',
-                            value: 'list',
-                            description: 'List all graphs',
-                            action: 'List graphs',
+                            name: 'Count',
+                            value: 'count',
+                            description: 'Get graph node count',
+                            action: 'Get graph count',
                         },
                         {
                             name: 'Create & Execute Query',
@@ -75,16 +75,16 @@ class FalkorDb {
                             action: 'Delete a graph',
                         },
                         {
-                            name: 'Count',
-                            value: 'count',
-                            description: 'Get graph node count',
-                            action: 'Get graph count',
-                        },
-                        {
                             name: 'Duplicate',
                             value: 'duplicate',
                             description: 'Duplicate a graph',
                             action: 'Duplicate a graph',
+                        },
+                        {
+                            name: 'List',
+                            value: 'list',
+                            description: 'List all graphs',
+                            action: 'List graphs',
                         },
                     ],
                     default: 'list',
