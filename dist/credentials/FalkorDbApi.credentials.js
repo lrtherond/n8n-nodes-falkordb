@@ -61,16 +61,16 @@ class FalkorDbApi {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                 },
             },
             rules: [
                 {
                     type: 'responseSuccessBody',
                     properties: {
-                        key: 'credentials',
-                        value: {},
-                        message: 'Failed to connect to FalkorDB server. Please check your connection settings.',
+                        key: 'credentials.signinUrl',
+                        value: 'string',
+                        message: 'Failed to connect to FalkorDB server or get authentication providers. Please verify your host, port, and SSL settings.',
                     },
                 },
             ],

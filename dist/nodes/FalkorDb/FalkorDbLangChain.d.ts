@@ -54,7 +54,6 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
     private getMessages;
     private addMessage;
     private executeQuery;
-    private getSessionCookies;
 }
 export declare class FalkorDbVectorStore extends VectorStore {
     private graphName;
@@ -79,8 +78,8 @@ export declare class FalkorDbVectorStore extends VectorStore {
     private generatePlaceholderEmbedding;
     static fromDocuments(documents: Document[], _embeddings: any, config: any): Promise<FalkorDbVectorStore>;
     private executeQuery;
-    private getSessionCookies;
 }
+export declare function getSessionCookies(baseURL: string, username: string, password: string, httpRequest: (options: IRequestOptions) => Promise<any>): Promise<string>;
 export declare function getSessionId(context: any, itemIndex: number): string;
 export declare function getConnectionHintNoticeField(_connectionTypes: string[]): any;
 export declare function logWrapper(instance: any, _context: any): any;

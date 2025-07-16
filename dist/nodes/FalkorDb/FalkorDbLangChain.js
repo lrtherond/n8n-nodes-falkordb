@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FalkorDbVectorStore = exports.FalkorDbChatMemory = exports.VectorStore = exports.BaseChatMemory = void 0;
+exports.getSessionCookies = getSessionCookies;
 exports.getSessionId = getSessionId;
 exports.getConnectionHintNoticeField = getConnectionHintNoticeField;
 exports.logWrapper = logWrapper;
@@ -98,7 +99,7 @@ class FalkorDbChatMemory extends BaseChatMemory {
         const password = this._credentials.password;
         const graphName = this._graphName;
         const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
-        const cookies = await this.getSessionCookies(baseURL, username, password);
+        const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest);
         const endpoint = `/api/graph/${graphName}`;
         const requestOptions = {
             method: 'POST',
@@ -125,41 +126,6 @@ class FalkorDbChatMemory extends BaseChatMemory {
         catch (error) {
             throw new Error(`FalkorDB memory query failed: ${error.message}`);
         }
-    }
-    async getSessionCookies(baseURL, username, password) {
-        var _a, _b;
-        const providersResponse = await this.httpRequest({
-            method: 'GET',
-            baseURL,
-            url: '/api/auth/providers',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            json: true,
-        });
-        const signinUrl = (_a = providersResponse.credentials) === null || _a === void 0 ? void 0 : _a.signinUrl;
-        if (!signinUrl) {
-            throw new Error('Failed to get signin URL from FalkorDB auth providers');
-        }
-        const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
-        const signinResponse = await this.httpRequest({
-            method: 'POST',
-            baseURL,
-            url: signinPath,
-            body: {
-                username,
-                password,
-            },
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            json: true,
-        });
-        const setCookieHeaders = ((_b = signinResponse.headers) === null || _b === void 0 ? void 0 : _b['set-cookie']) || [];
-        const cookies = setCookieHeaders.map((cookie) => cookie.split(';')[0]).join('; ');
-        return cookies;
     }
 }
 exports.FalkorDbChatMemory = FalkorDbChatMemory;
@@ -264,7 +230,7 @@ class FalkorDbVectorStore extends VectorStore {
         const password = this._credentials.password;
         const graphName = this.graphName;
         const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
-        const cookies = await this.getSessionCookies(baseURL, username, password);
+        const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest);
         const endpoint = `/api/graph/${graphName}`;
         const requestOptions = {
             method: 'POST',
@@ -292,43 +258,43 @@ class FalkorDbVectorStore extends VectorStore {
             throw new Error(`FalkorDB vector store query failed: ${error.message}`);
         }
     }
-    async getSessionCookies(baseURL, username, password) {
-        var _a, _b;
-        const providersResponse = await this.httpRequest({
-            method: 'GET',
-            baseURL,
-            url: '/api/auth/providers',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            json: true,
-        });
-        const signinUrl = (_a = providersResponse.credentials) === null || _a === void 0 ? void 0 : _a.signinUrl;
-        if (!signinUrl) {
-            throw new Error('Failed to get signin URL from FalkorDB auth providers');
-        }
-        const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
-        const signinResponse = await this.httpRequest({
-            method: 'POST',
-            baseURL,
-            url: signinPath,
-            body: {
-                username,
-                password,
-            },
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            json: true,
-        });
-        const setCookieHeaders = ((_b = signinResponse.headers) === null || _b === void 0 ? void 0 : _b['set-cookie']) || [];
-        const cookies = setCookieHeaders.map((cookie) => cookie.split(';')[0]).join('; ');
-        return cookies;
-    }
 }
 exports.FalkorDbVectorStore = FalkorDbVectorStore;
+async function getSessionCookies(baseURL, username, password, httpRequest) {
+    var _a, _b;
+    const providersResponse = await httpRequest({
+        method: 'GET',
+        baseURL,
+        url: '/api/auth/providers',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        json: true,
+    });
+    const signinUrl = (_a = providersResponse.credentials) === null || _a === void 0 ? void 0 : _a.signinUrl;
+    if (!signinUrl) {
+        throw new Error('Failed to get signin URL from FalkorDB auth providers');
+    }
+    const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
+    const signinResponse = await httpRequest({
+        method: 'POST',
+        baseURL,
+        url: signinPath,
+        body: {
+            username,
+            password,
+        },
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        json: true,
+    });
+    const setCookieHeaders = ((_b = signinResponse.headers) === null || _b === void 0 ? void 0 : _b['set-cookie']) || [];
+    const cookies = setCookieHeaders.map((cookie) => cookie.split(';')[0]).join('; ');
+    return cookies;
+}
 function getSessionId(context, itemIndex) {
     var _a, _b;
     const sessionIdType = context.getNodeParameter('sessionIdType', itemIndex);
