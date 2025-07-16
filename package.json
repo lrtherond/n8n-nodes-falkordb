@@ -1,6 +1,6 @@
 {
 	"name": "@lrtherond/n8n-nodes-falkordb",
-	"version": "0.1.6",
+	"version": "1.0.0",
 	"description": "n8n community node for FalkorDB graph database with AI integration",
 	"keywords": [
 		"n8n-community-node-package",
