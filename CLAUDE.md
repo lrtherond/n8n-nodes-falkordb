@@ -7,34 +7,18 @@ This is a comprehensive n8n community node package for FalkorDB, a graph databas
 ## Package Structure
 
 ### Core Components
-- **4 Node Types**: Database operations, AI memory, vector store, and vector operations
-- **1 Credential Type**: FalkorDB API authentication
-- **LangChain Integration**: Complete AI workflow support
+- **1 Node Type**: FalkorDB Vector Store for AI workflows
+- **1 Credential Type**: FalkorDB API authentication with cookie-based sessions
+- **LangChain Integration**: Complete AI workflow support with vector store and memory utilities
 - **TypeScript**: Full type safety and modern development
 
 ### Node Types
-1. **FalkorDB Node** (`FalkorDb.node.ts`)
-   - Traditional database operations
-   - Graph management (create, delete, list)
-   - Cypher query execution
-   - Schema operations (indexes, constraints)
-
-2. **FalkorDB Memory Node** (`FalkorDbMemory.node.ts`)
-   - AI agent memory management
-   - Session-based conversation storage
-   - LangChain BaseChatMemory integration
-   - Outputs: `NodeConnectionType.AiMemory`
-
-3. **FalkorDB Vector Store Node** (`FalkorDbVectorStore.node.ts`)
+1. **FalkorDB Vector Store Node** (`FalkorDbVectorStore.node.ts`)
    - Vector store supply node for AI agents
    - Embedding storage and similarity search
    - LangChain VectorStore integration
    - Outputs: `NodeConnectionType.AiVectorStore`
-
-4. **FalkorDB Vector Store Operations Node** (`FalkorDbVectorStoreOperations.node.ts`)
-   - Manual vector operations (insert, retrieve, delete)
-   - Document management with metadata
-   - Batch processing capabilities
+   - Supports metadata filtering and configurable similarity thresholds
 
 ## Development Standards
 
@@ -78,27 +62,22 @@ npm run dev        # Development with watch mode
 - **AI agent compatibility**: Full n8n AI workflow integration
 
 ### API Integration
-- **FalkorDB REST API**: Complete HTTP client implementation
-- **Authentication**: Username/password and SSL/TLS support
+- **FalkorDB REST API**: Complete HTTP client implementation with cookie-based authentication
+- **Authentication**: Session-based authentication using `/api/auth/providers` and signin flow
+- **Session Management**: Automatic cookie extraction and inclusion in all API requests
 - **Error handling**: Comprehensive error management with user-friendly messages
-- **Request optimization**: Proper timeout and retry handling
+- **Security**: Proper authentication flow following FalkorDB's documented API patterns
 
 ## File Organization
 
 ```
 /
 ├── credentials/
-│   └── FalkorDbApi.credentials.ts     # API authentication
+│   └── FalkorDbApi.credentials.ts     # API authentication with cookie-based sessions
 ├── nodes/
 │   └── FalkorDb/
-│       ├── FalkorDb.node.ts           # Main database node
-│       ├── FalkorDb.node.json         # Documentation metadata
-│       ├── FalkorDbMemory.node.ts     # AI memory integration
-│       ├── FalkorDbMemory.node.json   # Documentation metadata
-│       ├── FalkorDbVectorStore.node.ts # Vector store supply
+│       ├── FalkorDbVectorStore.node.ts # Vector store supply node
 │       ├── FalkorDbVectorStore.node.json # Documentation metadata
-│       ├── FalkorDbVectorStoreOperations.node.ts # Vector operations
-│       ├── FalkorDbVectorStoreOperations.node.json # Documentation metadata
 │       ├── FalkorDbLangChain.ts       # LangChain integration utilities
 │       └── falkordb.svg               # Custom node icon
 ├── dist/                              # Build output (auto-generated)
@@ -150,15 +129,17 @@ npm install n8n-nodes-falkordb
 ## Known Limitations
 
 ### Current Implementation
-- **Mock implementations**: LangChain utilities contain placeholder implementations
-- **No real database connection**: Actual FalkorDB connection needs implementation
+- **Single node implementation**: Only vector store node is currently implemented
+- **Cookie-based authentication**: Fully implemented FalkorDB session authentication
+- **LangChain integration**: Complete vector store and memory utilities with placeholder embeddings
 - **Limited testing**: No automated test suite currently
 
 ### Future Improvements
-- **Real database integration**: Implement actual FalkorDB client
+- **Additional node types**: Implement database operations, memory, and vector operations nodes
+- **Real embedding integration**: Replace placeholder embeddings with actual embedding models
 - **Comprehensive testing**: Add Jest test suite
-- **Performance optimization**: Implement connection pooling
-- **Advanced features**: Add more FalkorDB-specific operations
+- **Performance optimization**: Implement connection pooling and session caching
+- **Advanced features**: Add more FalkorDB-specific operations and graph querying capabilities
 
 ## Dependencies
 
@@ -189,9 +170,10 @@ npm install n8n-nodes-falkordb
 ## Version History
 
 ### 0.1.0 (Current)
-- Initial release with 4 node types
+- Initial release with 1 node type (FalkorDB Vector Store)
 - Complete n8n best practices compliance
-- LangChain integration framework
+- Cookie-based authentication implementation
+- LangChain integration framework with vector store and memory utilities
 - Comprehensive ESLint configuration
 - Production-ready package structure
 

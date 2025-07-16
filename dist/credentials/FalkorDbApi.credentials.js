@@ -57,26 +57,19 @@ class FalkorDbApi {
         this.test = {
             request: {
                 baseURL: '={{$credentials.ssl ? "https" : "http"}}://{{$credentials.host}}:{{$credentials.port}}',
-                url: '/api/graph/test',
-                method: 'POST',
+                url: '/api/auth/providers',
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                },
-                auth: {
-                    username: '={{$credentials.username || ""}}',
-                    password: '={{$credentials.password || ""}}',
-                },
-                body: {
-                    query: 'RETURN 1 as test',
                 },
             },
             rules: [
                 {
                     type: 'responseSuccessBody',
                     properties: {
-                        key: 'result',
-                        value: '',
+                        key: 'credentials',
+                        value: {},
                         message: 'Failed to connect to FalkorDB server. Please check your connection settings.',
                     },
                 },

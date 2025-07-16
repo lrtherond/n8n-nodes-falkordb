@@ -165,6 +165,10 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		const graphName = this._graphName;
 		
 		const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
+		
+		// Get authentication session cookies
+		const cookies = await this.getSessionCookies(baseURL, username, password);
+		
 		const endpoint = `/api/graph/${graphName}`;
 		
 		const requestOptions: IRequestOptions = {
@@ -178,10 +182,7 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 			headers: {
 				'Content-Type': 'application/json',
 				'Accept': 'application/json',
-			},
-			auth: {
-				user: username || '',
-				pass: password || '',
+				'Cookie': cookies,
 			},
 			json: true,
 		};
@@ -197,6 +198,50 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		} catch (error) {
 			throw new Error(`FalkorDB memory query failed: ${(error as Error).message}`);
 		}
+	}
+
+	private async getSessionCookies(baseURL: string, username: string, password: string): Promise<string> {
+		// Get authentication providers
+		const providersResponse = await this.httpRequest({
+			method: 'GET',
+			baseURL,
+			url: '/api/auth/providers',
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			json: true,
+		});
+		
+		const signinUrl = providersResponse.credentials?.signinUrl;
+		if (!signinUrl) {
+			throw new Error('Failed to get signin URL from FalkorDB auth providers');
+		}
+		
+		// Parse the signin URL to get the path
+		const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
+		
+		// Sign in with credentials
+		const signinResponse = await this.httpRequest({
+			method: 'POST',
+			baseURL,
+			url: signinPath,
+			body: {
+				username,
+				password,
+			},
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			json: true,
+		});
+		
+		// Extract session cookies from response headers
+		const setCookieHeaders = signinResponse.headers?.['set-cookie'] || [];
+		const cookies = setCookieHeaders.map((cookie: string) => cookie.split(';')[0]).join('; ');
+		
+		return cookies;
 	}
 
 }
@@ -347,6 +392,10 @@ export class FalkorDbVectorStore extends VectorStore {
 		const graphName = this.graphName;
 		
 		const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
+		
+		// Get authentication session cookies
+		const cookies = await this.getSessionCookies(baseURL, username, password);
+		
 		const endpoint = `/api/graph/${graphName}`;
 		
 		const requestOptions: IRequestOptions = {
@@ -360,10 +409,7 @@ export class FalkorDbVectorStore extends VectorStore {
 			headers: {
 				'Content-Type': 'application/json',
 				'Accept': 'application/json',
-			},
-			auth: {
-				user: username || '',
-				pass: password || '',
+				'Cookie': cookies,
 			},
 			json: true,
 		};
@@ -379,6 +425,50 @@ export class FalkorDbVectorStore extends VectorStore {
 		} catch (error) {
 			throw new Error(`FalkorDB vector store query failed: ${(error as Error).message}`);
 		}
+	}
+
+	private async getSessionCookies(baseURL: string, username: string, password: string): Promise<string> {
+		// Get authentication providers
+		const providersResponse = await this.httpRequest({
+			method: 'GET',
+			baseURL,
+			url: '/api/auth/providers',
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			json: true,
+		});
+		
+		const signinUrl = providersResponse.credentials?.signinUrl;
+		if (!signinUrl) {
+			throw new Error('Failed to get signin URL from FalkorDB auth providers');
+		}
+		
+		// Parse the signin URL to get the path
+		const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
+		
+		// Sign in with credentials
+		const signinResponse = await this.httpRequest({
+			method: 'POST',
+			baseURL,
+			url: signinPath,
+			body: {
+				username,
+				password,
+			},
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			json: true,
+		});
+		
+		// Extract session cookies from response headers
+		const setCookieHeaders = signinResponse.headers?.['set-cookie'] || [];
+		const cookies = setCookieHeaders.map((cookie: string) => cookie.split(';')[0]).join('; ');
+		
+		return cookies;
 	}
 }
 
