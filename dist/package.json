@@ -1,6 +1,6 @@
 {
     "name": "@lrtherond/n8n-nodes-falkordb",
-    "version": "0.1.6",
+    "version": "1.0.0",
     "description": "n8n community node for FalkorDB graph database with AI integration",
     "keywords": [
         "n8n-community-node-package",
@@ -45,10 +45,7 @@
             "dist/credentials/FalkorDbApi.credentials.js"
         ],
         "nodes": [
-            "dist/nodes/FalkorDb/FalkorDb.node.js",
-            "dist/nodes/FalkorDb/FalkorDbMemory.node.js",
-            "dist/nodes/FalkorDb/FalkorDbVectorStore.node.js",
-            "dist/nodes/FalkorDb/FalkorDbVectorStoreOperations.node.js"
+            "dist/nodes/FalkorDb/FalkorDbVectorStore.node.js"
         ]
     },
     "devDependencies": {

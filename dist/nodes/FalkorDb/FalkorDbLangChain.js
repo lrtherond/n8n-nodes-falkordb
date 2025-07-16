@@ -23,7 +23,12 @@ class FalkorDbChatMemory extends BaseChatMemory {
         this.outputKey = config.outputKey || 'output';
         this.returnMessages = config.returnMessages || false;
         this.httpRequest = config.httpRequest;
-        this.logger = config.logger || { debug: () => { }, info: () => { }, warn: () => { }, error: () => { } };
+        this.logger = config.logger || {
+            debug: () => { },
+            info: () => { },
+            warn: () => { },
+            error: () => { },
+        };
     }
     async loadMemoryVariables(_values) {
         try {
@@ -202,7 +207,12 @@ class FalkorDbVectorStore extends VectorStore {
         this._distanceMetric = config.distanceMetric || 'cosine';
         this.similarityThreshold = config.similarityThreshold || 0.7;
         this.httpRequest = config.httpRequest;
-        this.logger = config.logger || { debug: () => { }, info: () => { }, warn: () => { }, error: () => { } };
+        this.logger = config.logger || {
+            debug: () => { },
+            info: () => { },
+            warn: () => { },
+            error: () => { },
+        };
     }
     async addDocuments(documents) {
         try {
