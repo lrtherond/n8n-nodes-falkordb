@@ -85,7 +85,7 @@ npm run dev        # Development with watch mode
 ├── tsconfig.json                      # TypeScript configuration
 ├── gulpfile.js                        # Build process
 ├── .eslintrc.js                       # Main linting rules
-├── .eslintrc.prepublish.js           # Pre-publish validation
+├── .eslintrc.prepublish.js            # Pre-publish validation
 ├── .prettierrc.js                     # Code formatting
 ├── index.js                           # Package entry point
 └── README.md                          # User documentation
