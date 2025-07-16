@@ -2,168 +2,166 @@
 
 > ⚠️ **Development Warning**: This package is currently under active development and should **NOT** be used in production environments. Features may be incomplete, unstable, or subject to breaking changes without notice.
 
-This is an n8n community node package that provides comprehensive integration with FalkorDB, a graph database that supports Cypher queries and AI workflows.
+This is an n8n community node package that provides FalkorDB vector store integration specifically designed for AI Agent memory in n8n workflows.
 
-[FalkorDB](https://falkordb.com) is a graph database that provides a Redis-compatible interface while supporting advanced graph operations through Cypher query language and vector similarity search.
+[FalkorDB](https://falkordb.com) is a graph database that provides vector similarity search capabilities through its REST API, making it ideal for AI memory applications.
 
 ## Installation
 
 Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
-## Nodes
+## Node
 
-This package includes three specialized nodes designed for different use cases:
+This package includes one specialized node designed for AI Agent memory:
 
-### 1. FalkorDB Node (Traditional Database Operations)
-Core database operations for graph management and Cypher queries.
+### FalkorDB Vector Store Node (AI Agent Memory)
 
-**Operations:**
-- **Graph Operations**: Create, delete, and list graphs
-- **Query Operations**: Execute Cypher queries and get execution plans
-- **Schema Operations**: Retrieve schema, create/drop indexes
-
-### 2. FalkorDB Memory Node (AI Agent Integration)
-Specialized node for AI agent memory management with LangChain integration.
+Vector store implementation for AI Agent memory with embedding storage and similarity search.
 
 **Features:**
-- Session-based conversation memory
-- Context window management
-- Integration with AI agents and chat workflows
-- Automatic message history storage in graph format
-- Supports custom session management
+- Document embedding storage in FalkorDB graph database
+- Vector similarity search for AI memory retrieval
+- Metadata filtering for enhanced search capabilities
+- Session-based memory management
+- Integration with n8n AI Agent nodes
+- LangChain compatibility
 
 **Connection Types:**
-- **Output**: `AiMemory` (connects to AI agents)
+- **Output**: `AiVectorStore` (connects to AI Agent nodes)
 - **Input**: None (supply node)
 
-### 3. FalkorDB Vector Store Node (Embedding & Similarity Search)
-Vector store implementation for embeddings and similarity search.
-
-**Features:**
-- Document embedding storage
-- Vector similarity search
-- Metadata filtering
-- Collection management
-- Integration with LangChain vector stores
-
-**Connection Types:**
-- **Output**: `AiVectorStore` (connects to AI agents)
-- **Input**: None (supply node)
-
-**Operations Node:**
-- **Insert**: Add documents with embeddings
-- **Retrieve**: Perform similarity search
-- **Delete**: Remove documents by ID
+**Key Operations:**
+- Automatic document storage with embeddings
+- Similarity search for memory retrieval
+- Memory persistence across AI Agent sessions
+- Graph-based relationships for rich context
 
 ## Credentials
 
 You need to create a FalkorDB API credential with the following information:
 
 - **Host**: FalkorDB server hostname or IP address (default: localhost)
-- **Port**: FalkorDB server port (default: 6379)
+- **Port**: FalkorDB REST API port (default: 3000)
 - **Username**: Username for authentication (optional)
 - **Password**: Password for authentication (optional)
 - **SSL/TLS**: Whether to use SSL/TLS connection (default: false)
 
 ## Example Usage
 
-### Traditional Database Operations
+### AI Agent Memory Integration
 
-#### Create a Graph
-1. Use **FalkorDB** node
-2. Select Resource: `Graph`
-3. Select Operation: `Create`
-4. Enter Graph Name: `my-graph`
+1. **Add FalkorDB Vector Store Node**
+   - Drag the **FalkorDB Vector Store** node into your workflow
+   - Configure the FalkorDB API credentials
+   - Set graph name (e.g., `ai-memory`)
+   - Set node label (e.g., `Document`)
+   - Configure dimensions (default: 1536 for OpenAI embeddings)
 
-#### Execute a Cypher Query
-1. Use **FalkorDB** node
-2. Select Resource: `Query`
-3. Select Operation: `Execute`
-4. Enter Graph Name: `my-graph`
-5. Enter Cypher Query: `MATCH (n) RETURN n LIMIT 10`
+2. **Connect to AI Agent**
+   - Connect the FalkorDB Vector Store node output to your AI Agent node
+   - The AI Agent will automatically use the vector store for memory
+   - Memory is persisted across workflow executions
 
-### AI Agent Integration
+3. **Configure Memory Settings**
+   - **Graph Name**: Database graph to store memory (e.g., `ai-sessions`)
+   - **Node Label**: Label for memory documents (e.g., `Memory`)
+   - **Dimensions**: Vector embedding dimensions (match your embedding model)
+   - **Distance Metric**: `cosine`, `euclidean`, or `dotproduct`
+   - **Similarity Threshold**: Minimum similarity score for memory retrieval
 
-#### Memory Management
-1. Use **FalkorDB Memory** node
-2. Connect to AI Agent node
-3. Configure session management
-4. Set context window length
-5. Memory is automatically stored in graph format
+### Sample Workflow
 
-#### Vector Store Operations
-1. Use **FalkorDB Vector Store** node
-2. Connect to AI Agent or embedding model
-3. Configure collection name and dimensions
-4. Use **FalkorDB Vector Store Operations** for manual operations:
-   - Insert documents with metadata
-   - Retrieve similar documents
-   - Delete specific documents
-
-### Advanced Cypher Queries
-
-#### Create Nodes and Relationships
-```cypher
-CREATE (p:Person {name: 'Alice', age: 30})-[:KNOWS]->(q:Person {name: 'Bob', age: 25})
-RETURN p, q
+```
+Chat Trigger → AI Agent → Response
+                ↑
+    FalkorDB Vector Store (Memory)
 ```
 
-#### Memory Storage (handled automatically by Memory node)
-```cypher
-MERGE (s:Session {id: $sessionId})
-CREATE (s)-[:HAS_MESSAGE]->(m:Message {
-  type: 'human',
-  content: $content,
-  timestamp: datetime()
-})
-```
+The AI Agent will:
+- Store conversation context in FalkorDB
+- Retrieve relevant memory during conversations
+- Maintain persistent memory across sessions
 
-#### Vector Storage (handled automatically by Vector Store node)
-```cypher
-MERGE (c:Collection {name: $collectionName})
-CREATE (c)-[:CONTAINS]->(d:Document {
-  content: $content,
-  metadata: $metadata,
-  embedding: $embedding,
-  created_at: datetime()
-})
+## Configuration Options
+
+### Vector Store Settings
+
+- **Graph Name**: FalkorDB graph name for memory storage
+- **Node Label**: Graph node label for memory documents
+- **Dimensions**: Vector embedding dimensions
+- **Distance Metric**: Similarity calculation method
+- **Similarity Threshold**: Minimum score for memory retrieval
+- **Top K**: Maximum number of memory items to retrieve
+
+### Memory Features
+
+- **Session Management**: Automatic session-based memory isolation
+- **Context Preservation**: Rich metadata storage for conversation context
+- **Semantic Search**: Vector similarity for intelligent memory retrieval
+- **Persistent Storage**: Memory survives workflow restarts
+
+## API Integration
+
+### FalkorDB REST API
+
+This node integrates with FalkorDB's REST API available at `http://<hostname>:3000/api`:
+
+- **Endpoint**: `/api/graph/{graph_name}`
+- **Method**: POST
+- **Authentication**: HTTP Basic Auth (username/password)
+- **Content-Type**: application/json
+
+### Request Format
+
+```json
+{
+  "query": "CYPHER_QUERY",
+  "parameters": {
+    "param1": "value1",
+    "param2": "value2"
+  }
+}
 ```
 
 ## AI Workflow Integration
 
 ### LangChain Compatibility
-- **Memory Interface**: Compatible with LangChain's `BaseChatMemory`
+
 - **Vector Store Interface**: Compatible with LangChain's `VectorStore`
-- **Session Management**: Automatic session handling for chat workflows
-- **Document Processing**: Supports document chunking and embedding
+- **Memory Interface**: Supports AI Agent memory patterns
+- **Document Processing**: Handles embedding generation and storage
+- **Session Management**: Automatic session handling for AI workflows
 
 ### Use Cases
+
 - **Conversational AI**: Persistent memory across chat sessions
 - **RAG (Retrieval Augmented Generation)**: Vector similarity search for context
-- **Knowledge Graphs**: Store and query structured knowledge
+- **Knowledge Retention**: Long-term memory for AI agents
 - **Multi-turn Conversations**: Context-aware responses with memory
-- **Semantic Search**: Find relevant documents based on meaning
+- **Semantic Search**: Find relevant conversation history
 
 ## Architecture
 
-### Graph-Based Memory
-- Messages stored as nodes with timestamps
-- Relationships capture conversation flow
-- Rich metadata and context preservation
-- Efficient querying with Cypher
+### Graph-Based Memory Storage
 
-### Vector Storage
-- Documents stored with vector embeddings
-- Metadata filtering for precise search
-- Configurable similarity thresholds
-- Scalable collection management
+- Documents stored as graph nodes with vector embeddings
+- Relationships capture conversation flow and context
+- Rich metadata for filtering and search
+- Efficient querying with Cypher and vector operations
+
+### Vector Similarity Search
+
+- Embedding-based similarity calculation
+- Configurable distance metrics (cosine, euclidean, dot product)
+- Threshold-based filtering for relevant memories
+- Scalable storage for large conversation histories
 
 ## Resources
 
 - [FalkorDB Documentation](https://docs.falkordb.com/)
-- [Cypher Query Language](https://neo4j.com/docs/cypher-manual/current/)
+- [FalkorDB REST API](https://docs.falkordb.com/integration/rest.html)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
-- [LangChain Integration](https://docs.langchain.com/docs/)
+- [n8n AI Agent Documentation](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.agent/)
 
 ## Development
 
@@ -238,12 +236,15 @@ MIT
 
 ## Version History
 
-### 0.1.0
-- Initial release with three specialized nodes
-- FalkorDB node for traditional database operations
-- FalkorDB Memory node for AI agent integration
-- FalkorDB Vector Store node for embeddings and similarity search
+### 0.1.6 (Current)
+- Focused implementation for AI Agent memory
+- FalkorDB Vector Store node for AI memory integration
+- REST API integration with FalkorDB (port 3000)
 - LangChain compatibility layer
-- Session management for chat workflows
-- Vector operations for RAG applications
-- Comprehensive Cypher query support
+- Placeholder embedding generation for development
+- Streamlined codebase for AI Agent focus
+
+### 0.1.0
+- Initial release with multiple node types
+- Comprehensive FalkorDB integration (deprecated)
+- Multiple nodes for different use cases (consolidated)

@@ -21,6 +21,7 @@ class FalkorDbChatMemory extends BaseChatMemory {
         this.inputKey = config.inputKey || 'input';
         this.outputKey = config.outputKey || 'output';
         this.returnMessages = config.returnMessages || false;
+        this.httpRequest = config.httpRequest;
     }
     async loadMemoryVariables(_values) {
         try {
@@ -89,25 +90,61 @@ class FalkorDbChatMemory extends BaseChatMemory {
             content,
         });
     }
-    async executeQuery(_query, _parameters) {
-        return [];
+    async executeQuery(query, parameters) {
+        const host = this._credentials.host;
+        const port = this._credentials.port;
+        const ssl = this._credentials.ssl;
+        const username = this._credentials.username;
+        const password = this._credentials.password;
+        const graphName = this._graphName;
+        const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
+        const endpoint = `/api/graph/${graphName}`;
+        const requestOptions = {
+            method: 'POST',
+            baseURL,
+            url: endpoint,
+            body: {
+                query,
+                parameters,
+            },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            auth: {
+                user: username || '',
+                pass: password || '',
+            },
+            json: true,
+        };
+        try {
+            const response = await this.httpRequest(requestOptions);
+            if (response.result && response.result.data) {
+                return response.result.data;
+            }
+            return [];
+        }
+        catch (error) {
+            throw new Error(`FalkorDB memory query failed: ${error.message}`);
+        }
     }
 }
 exports.FalkorDbChatMemory = FalkorDbChatMemory;
 class FalkorDbVectorStore extends VectorStore {
     constructor(config) {
         super();
-        this.collectionName = config.collectionName;
+        this.graphName = config.graphName;
+        this.nodeLabel = config.nodeLabel;
         this._dimensions = config.dimensions;
         this._credentials = config.credentials;
         this._distanceMetric = config.distanceMetric || 'cosine';
         this.similarityThreshold = config.similarityThreshold || 0.7;
+        this.httpRequest = config.httpRequest;
     }
     async addDocuments(documents) {
         const query = `
-			MERGE (c:Collection {name: $collectionName})
 			UNWIND $documents AS doc
-			CREATE (c)-[:CONTAINS]->(d:Document {
+			CREATE (d:${this.nodeLabel} {
 				id: randomUUID(),
 				content: doc.content,
 				metadata: doc.metadata,
@@ -116,21 +153,19 @@ class FalkorDbVectorStore extends VectorStore {
 			})
 		`;
         await this.executeQuery(query, {
-            collectionName: this.collectionName,
             documents: documents.map((doc) => ({
                 content: doc.pageContent,
                 metadata: doc.metadata || {},
-                embedding: [],
+                embedding: this.generatePlaceholderEmbedding(doc.pageContent),
             })),
         });
     }
-    async similaritySearch(_query, k, filter) {
+    async similaritySearch(query, k, filter) {
         let cypherQuery = `
-			MATCH (c:Collection {name: $collectionName})-[:CONTAINS]->(d:Document)
+			MATCH (d:${this.nodeLabel})
 		`;
         const parameters = {
-            collectionName: this.collectionName,
-            queryEmbedding: [],
+            queryEmbedding: this.generatePlaceholderEmbedding(query),
             limit: k,
             threshold: this.similarityThreshold,
         };
@@ -158,19 +193,73 @@ class FalkorDbVectorStore extends VectorStore {
     }
     async delete(ids) {
         const query = `
-			MATCH (d:Document)
+			MATCH (d:${this.nodeLabel})
 			WHERE d.id IN $ids
 			DETACH DELETE d
 		`;
         await this.executeQuery(query, { ids });
+    }
+    generatePlaceholderEmbedding(text) {
+        const embedding = new Array(this._dimensions).fill(0);
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        for (let i = 0; i < this._dimensions; i++) {
+            embedding[i] = Math.sin(hash * (i + 1)) * 0.1 + Math.cos(hash * (i + 2)) * 0.1;
+        }
+        const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+        if (magnitude > 0) {
+            for (let i = 0; i < embedding.length; i++) {
+                embedding[i] /= magnitude;
+            }
+        }
+        return embedding;
     }
     static async fromDocuments(documents, _embeddings, config) {
         const store = new FalkorDbVectorStore(config);
         await store.addDocuments(documents);
         return store;
     }
-    async executeQuery(_query, _parameters) {
-        return [];
+    async executeQuery(query, parameters) {
+        const host = this._credentials.host;
+        const port = this._credentials.port;
+        const ssl = this._credentials.ssl;
+        const username = this._credentials.username;
+        const password = this._credentials.password;
+        const graphName = this.graphName;
+        const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
+        const endpoint = `/api/graph/${graphName}`;
+        const requestOptions = {
+            method: 'POST',
+            baseURL,
+            url: endpoint,
+            body: {
+                query,
+                parameters,
+            },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            auth: {
+                user: username || '',
+                pass: password || '',
+            },
+            json: true,
+        };
+        try {
+            const response = await this.httpRequest(requestOptions);
+            if (response.result && response.result.data) {
+                return response.result.data;
+            }
+            return [];
+        }
+        catch (error) {
+            throw new Error(`FalkorDB vector store query failed: ${error.message}`);
+        }
     }
 }
 exports.FalkorDbVectorStore = FalkorDbVectorStore;

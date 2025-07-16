@@ -48,12 +48,20 @@ class FalkorDbVectorStore {
             properties: [
                 (0, FalkorDbLangChain_1.getConnectionHintNoticeField)(["ai_agent"]),
                 {
-                    displayName: 'Collection Name',
-                    name: 'collectionName',
+                    displayName: 'Graph Name',
+                    name: 'graphName',
                     type: 'string',
                     required: true,
                     default: 'vectors',
-                    description: 'Name of the collection to store vectors in',
+                    description: 'Name of the FalkorDB graph to use',
+                },
+                {
+                    displayName: 'Node Label',
+                    name: 'nodeLabel',
+                    type: 'string',
+                    required: true,
+                    default: 'Document',
+                    description: 'Label for document nodes in the graph',
                 },
                 {
                     displayName: 'Dimensions',
@@ -113,7 +121,8 @@ class FalkorDbVectorStore {
     }
     async supplyData(itemIndex) {
         const credentials = await this.getCredentials('falkorDbApi');
-        const collectionName = this.getNodeParameter('collectionName', itemIndex);
+        const graphName = this.getNodeParameter('graphName', itemIndex);
+        const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex);
         const dimensions = this.getNodeParameter('dimensions', itemIndex);
         const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '');
         const options = this.getNodeParameter('options', itemIndex, {});
@@ -126,11 +135,13 @@ class FalkorDbVectorStore {
             }
         }
         const vectorStore = new FalkorDbLangChain_1.FalkorDbVectorStore({
-            collectionName,
+            graphName,
+            nodeLabel,
             dimensions,
             credentials,
             distanceMetric: options['distanceMetric'] || 'cosine',
             similarityThreshold: options['similarityThreshold'] || 0.7,
+            httpRequest: (options) => this.helpers.httpRequest(options),
         });
         return {
             response: vectorStore,

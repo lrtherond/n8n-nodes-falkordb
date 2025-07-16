@@ -1,4 +1,4 @@
-import type { IDataObject } from 'n8n-workflow';
+import type { IDataObject, IRequestOptions } from 'n8n-workflow';
 export interface Document {
     pageContent: string;
     metadata?: IDataObject;
@@ -36,6 +36,7 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
     private inputKey;
     private outputKey;
     private returnMessages;
+    private httpRequest;
     constructor(config: {
         sessionId: string;
         graphName: string;
@@ -45,6 +46,7 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
         inputKey?: string;
         outputKey?: string;
         returnMessages?: boolean;
+        httpRequest: (options: IRequestOptions) => Promise<any>;
     });
     loadMemoryVariables(_values: InputValues): Promise<MemoryVariables>;
     saveContext(input: InputValues, output: OutputValues): Promise<void>;
@@ -54,21 +56,26 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
     private executeQuery;
 }
 export declare class FalkorDbVectorStore extends VectorStore {
-    private collectionName;
+    private graphName;
+    private nodeLabel;
     private _dimensions;
     private _credentials;
     private _distanceMetric;
     private similarityThreshold;
+    private httpRequest;
     constructor(config: {
-        collectionName: string;
+        graphName: string;
+        nodeLabel: string;
         dimensions: number;
         credentials: IDataObject;
         distanceMetric?: string;
         similarityThreshold?: number;
+        httpRequest: (options: IRequestOptions) => Promise<any>;
     });
     addDocuments(documents: Document[]): Promise<void>;
-    similaritySearch(_query: string, k: number, filter?: IDataObject): Promise<Document[]>;
+    similaritySearch(query: string, k: number, filter?: IDataObject): Promise<Document[]>;
     delete(ids: string[]): Promise<void>;
+    private generatePlaceholderEmbedding;
     static fromDocuments(documents: Document[], _embeddings: any, config: any): Promise<FalkorDbVectorStore>;
     private executeQuery;
 }

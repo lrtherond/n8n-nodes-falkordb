@@ -59,12 +59,20 @@ export class FalkorDbVectorStore implements INodeType {
 		properties: [
 			getConnectionHintNoticeField([NodeConnectionType.AiAgent]),
 			{
-				displayName: 'Collection Name',
-				name: 'collectionName',
+				displayName: 'Graph Name',
+				name: 'graphName',
 				type: 'string',
 				required: true,
 				default: 'vectors',
-				description: 'Name of the collection to store vectors in',
+				description: 'Name of the FalkorDB graph to use',
+			},
+			{
+				displayName: 'Node Label',
+				name: 'nodeLabel',
+				type: 'string',
+				required: true,
+				default: 'Document',
+				description: 'Label for document nodes in the graph',
 			},
 			{
 				displayName: 'Dimensions',
@@ -124,7 +132,8 @@ export class FalkorDbVectorStore implements INodeType {
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
 		const credentials = await this.getCredentials('falkorDbApi');
-		const collectionName = this.getNodeParameter('collectionName', itemIndex) as string;
+		const graphName = this.getNodeParameter('graphName', itemIndex) as string;
+		const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex) as string;
 		const dimensions = this.getNodeParameter('dimensions', itemIndex) as number;
 		const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '') as string;
 		const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
@@ -142,11 +151,13 @@ export class FalkorDbVectorStore implements INodeType {
 		}
 
 		const vectorStore = new FalkorDbVectorStoreImpl({
-			collectionName,
+			graphName,
+			nodeLabel,
 			dimensions,
 			credentials,
 			distanceMetric: (options['distanceMetric'] as string) || 'cosine',
 			similarityThreshold: (options['similarityThreshold'] as number) || 0.7,
+			httpRequest: (options: any) => this.helpers.httpRequest(options),
 		});
 
 		return {
