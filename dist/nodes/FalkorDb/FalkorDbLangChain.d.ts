@@ -37,6 +37,7 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
     private outputKey;
     private returnMessages;
     private httpRequest;
+    private logger;
     constructor(config: {
         sessionId: string;
         graphName: string;
@@ -47,6 +48,7 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
         outputKey?: string;
         returnMessages?: boolean;
         httpRequest: (options: IRequestOptions) => Promise<any>;
+        logger?: any;
     });
     loadMemoryVariables(_values: InputValues): Promise<MemoryVariables>;
     saveContext(input: InputValues, output: OutputValues): Promise<void>;
@@ -63,6 +65,7 @@ export declare class FalkorDbVectorStore extends VectorStore {
     private _distanceMetric;
     private similarityThreshold;
     private httpRequest;
+    private logger;
     constructor(config: {
         graphName: string;
         nodeLabel: string;
@@ -71,6 +74,7 @@ export declare class FalkorDbVectorStore extends VectorStore {
         distanceMetric?: string;
         similarityThreshold?: number;
         httpRequest: (options: IRequestOptions) => Promise<any>;
+        logger?: any;
     });
     addDocuments(documents: Document[]): Promise<void>;
     similaritySearch(query: string, k: number, filter?: IDataObject): Promise<Document[]>;
@@ -79,7 +83,7 @@ export declare class FalkorDbVectorStore extends VectorStore {
     static fromDocuments(documents: Document[], _embeddings: any, config: any): Promise<FalkorDbVectorStore>;
     private executeQuery;
 }
-export declare function getSessionCookies(baseURL: string, username: string, password: string, httpRequest: (options: IRequestOptions) => Promise<any>): Promise<string>;
+export declare function getSessionCookies(baseURL: string, username: string, password: string, httpRequest: (options: IRequestOptions) => Promise<any>, logger?: any): Promise<string>;
 export declare function getSessionId(context: any, itemIndex: number): string;
 export declare function getConnectionHintNoticeField(_connectionTypes: string[]): any;
 export declare function logWrapper(instance: any, _context: any): any;

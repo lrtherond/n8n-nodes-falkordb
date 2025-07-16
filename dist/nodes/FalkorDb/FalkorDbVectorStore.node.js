@@ -120,32 +120,72 @@ class FalkorDbVectorStore {
         };
     }
     async supplyData(itemIndex) {
-        const credentials = await this.getCredentials('falkorDbApi');
-        const graphName = this.getNodeParameter('graphName', itemIndex);
-        const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex);
-        const dimensions = this.getNodeParameter('dimensions', itemIndex);
-        const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '');
-        const options = this.getNodeParameter('options', itemIndex, {});
-        if (metadataFilter) {
-            try {
-                JSON.parse(metadataFilter);
+        try {
+            this.logger.debug('FalkorDB Vector Store: Starting data supply', {
+                itemIndex,
+                nodeType: this.getNode().type,
+                nodeName: this.getNode().name,
+            });
+            const credentials = await this.getCredentials('falkorDbApi');
+            const graphName = this.getNodeParameter('graphName', itemIndex);
+            const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex);
+            const dimensions = this.getNodeParameter('dimensions', itemIndex);
+            const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '');
+            const options = this.getNodeParameter('options', itemIndex, {});
+            this.logger.debug('FalkorDB Vector Store: Configuration loaded', {
+                graphName,
+                nodeLabel,
+                dimensions,
+                hasMetadataFilter: !!metadataFilter,
+                options,
+            });
+            if (metadataFilter) {
+                try {
+                    JSON.parse(metadataFilter);
+                    this.logger.debug('FalkorDB Vector Store: Metadata filter validated', {
+                        metadataFilter,
+                    });
+                }
+                catch (error) {
+                    this.logger.error('FalkorDB Vector Store: Invalid metadata filter JSON', {
+                        error: error.message,
+                        stack: error.stack,
+                        metadataFilter,
+                        itemIndex,
+                        nodeData: this.getNode(),
+                    });
+                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Invalid metadata filter JSON: ${error.message}`, { itemIndex });
+                }
             }
-            catch (error) {
-                throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Invalid metadata filter JSON: ${error.message}`, { itemIndex });
-            }
+            const vectorStore = new FalkorDbLangChain_1.FalkorDbVectorStore({
+                graphName,
+                nodeLabel,
+                dimensions,
+                credentials,
+                distanceMetric: options['distanceMetric'] || 'cosine',
+                similarityThreshold: options['similarityThreshold'] || 0.7,
+                httpRequest: (options) => this.helpers.httpRequest(options),
+                logger: this.logger,
+            });
+            this.logger.debug('FalkorDB Vector Store: Vector store instance created successfully', {
+                graphName,
+                nodeLabel,
+                dimensions,
+            });
+            return {
+                response: vectorStore,
+            };
         }
-        const vectorStore = new FalkorDbLangChain_1.FalkorDbVectorStore({
-            graphName,
-            nodeLabel,
-            dimensions,
-            credentials,
-            distanceMetric: options['distanceMetric'] || 'cosine',
-            similarityThreshold: options['similarityThreshold'] || 0.7,
-            httpRequest: (options) => this.helpers.httpRequest(options),
-        });
-        return {
-            response: vectorStore,
-        };
+        catch (error) {
+            this.logger.error('FalkorDB Vector Store: Failed to supply data', {
+                error: error.message,
+                stack: error.stack,
+                itemIndex,
+                nodeData: this.getNode(),
+                executionId: this.getExecutionId(),
+            });
+            throw error;
+        }
     }
 }
 exports.FalkorDbVectorStore = FalkorDbVectorStore;

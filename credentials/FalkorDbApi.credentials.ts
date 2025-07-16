@@ -82,7 +82,8 @@ export class FalkorDbApi implements ICredentialType {
 				properties: {
 					key: 'credentials.signinUrl',
 					value: 'string',
-					message: 'Failed to connect to FalkorDB server or get authentication providers. Please verify your host, port, and SSL settings.',
+					message:
+						'Failed to connect to FalkorDB server or get authentication providers. Please verify your host, port, and SSL settings.',
 				},
 			},
 		],

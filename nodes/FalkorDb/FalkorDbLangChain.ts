@@ -48,6 +48,7 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 	private outputKey: string;
 	private returnMessages: boolean;
 	private httpRequest: (options: IRequestOptions) => Promise<any>;
+	private logger: any;
 
 	constructor(config: {
 		sessionId: string;
@@ -59,6 +60,7 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		outputKey?: string;
 		returnMessages?: boolean;
 		httpRequest: (options: IRequestOptions) => Promise<any>;
+		logger?: any;
 	}) {
 		super();
 		this.sessionId = config.sessionId;
@@ -70,6 +72,7 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		this.outputKey = config.outputKey || 'output';
 		this.returnMessages = config.returnMessages || false;
 		this.httpRequest = config.httpRequest;
+		this.logger = config.logger || { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 	}
 
 	async loadMemoryVariables(_values: InputValues): Promise<MemoryVariables> {
@@ -85,6 +88,13 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 
 			return { [this.memoryKey]: historyString };
 		} catch (error) {
+			this.logger.error('FalkorDB Memory: Failed to load memory variables', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				sessionId: this.sessionId,
+				graphName: this._graphName,
+				memoryKey: this.memoryKey,
+			});
 			// Return empty history on error
 			return { [this.memoryKey]: this.returnMessages ? [] : '' };
 		}
@@ -95,25 +105,53 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		const outputText = output[this.outputKey] as string;
 
 		if (!inputText || !outputText) {
+			this.logger.warn('FalkorDB Memory: Missing input or output text for context save', {
+				hasInput: !!inputText,
+				hasOutput: !!outputText,
+				sessionId: this.sessionId,
+				inputKey: this.inputKey,
+				outputKey: this.outputKey,
+			});
 			return;
 		}
 
 		try {
+			this.logger.debug('FalkorDB Memory: Saving context', {
+				sessionId: this.sessionId,
+				inputLength: inputText.length,
+				outputLength: outputText.length,
+			});
 			await this.addMessage('human', inputText);
 			await this.addMessage('ai', outputText);
 		} catch (error) {
-			// Failed to save context to FalkorDB
+			this.logger.error('FalkorDB Memory: Failed to save context', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				sessionId: this.sessionId,
+				graphName: this._graphName,
+				inputText: inputText.substring(0, 100) + '...',
+				outputText: outputText.substring(0, 100) + '...',
+			});
 		}
 	}
 
 	async clear(): Promise<void> {
 		try {
+			this.logger.debug('FalkorDB Memory: Clearing memory', {
+				sessionId: this.sessionId,
+				graphName: this._graphName,
+			});
 			await this.executeQuery(
 				'MATCH (s:Session {id: $sessionId})-[:HAS_MESSAGE]->(m:Message) DETACH DELETE m',
 				{ sessionId: this.sessionId },
 			);
 		} catch (error) {
-			// Failed to clear FalkorDB memory
+			this.logger.error('FalkorDB Memory: Failed to clear memory', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				sessionId: this.sessionId,
+				graphName: this._graphName,
+			});
 		}
 	}
 
@@ -163,44 +201,69 @@ export class FalkorDbChatMemory extends BaseChatMemory {
 		const username = this._credentials.username as string;
 		const password = this._credentials.password as string;
 		const graphName = this._graphName;
-		
+
 		const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
-		
-		// Get authentication session cookies
-		const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest);
-		
-		const endpoint = `/api/graph/${graphName}`;
-		
-		const requestOptions: IRequestOptions = {
-			method: 'POST',
+
+		this.logger.debug('FalkorDB Memory: Executing query', {
+			query: query.substring(0, 100) + '...',
+			parameters,
 			baseURL,
-			url: endpoint,
-			body: {
-				query,
-				parameters,
-			},
-			headers: {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json',
-				'Cookie': cookies,
-			},
-			json: true,
-		};
-		
+			graphName,
+		});
+
 		try {
+			// Get authentication session cookies
+			const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest, this.logger);
+
+			const endpoint = `/api/graph/${graphName}`;
+
+			const requestOptions: IRequestOptions = {
+				method: 'POST',
+				baseURL,
+				url: endpoint,
+				body: {
+					query,
+					parameters,
+				},
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json',
+					Cookie: cookies,
+				},
+				json: true,
+			};
+
+			this.logger.debug('FalkorDB Memory: Making API request', {
+				url: `${baseURL}${endpoint}`,
+				method: requestOptions.method,
+				hasCookies: !!cookies,
+			});
+
 			const response = await this.httpRequest(requestOptions);
-			
+
+			this.logger.debug('FalkorDB Memory: Query response received', {
+				hasResult: !!response.result,
+				hasData: !!(response.result && response.result.data),
+				dataLength: response.result?.data?.length || 0,
+			});
+
 			if (response.result && response.result.data) {
 				return response.result.data;
 			}
-			
+
 			return [];
 		} catch (error) {
+			this.logger.error('FalkorDB Memory: Query execution failed', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				query: query.substring(0, 100) + '...',
+				parameters,
+				baseURL,
+				graphName,
+			});
 			throw new Error(`FalkorDB memory query failed: ${(error as Error).message}`);
 		}
 	}
-
-
 }
 
 // FalkorDB Vector Store implementation for LangChain
@@ -212,6 +275,7 @@ export class FalkorDbVectorStore extends VectorStore {
 	private _distanceMetric: string;
 	private similarityThreshold: number;
 	private httpRequest: (options: IRequestOptions) => Promise<any>;
+	private logger: any;
 
 	constructor(config: {
 		graphName: string;
@@ -221,6 +285,7 @@ export class FalkorDbVectorStore extends VectorStore {
 		distanceMetric?: string;
 		similarityThreshold?: number;
 		httpRequest: (options: IRequestOptions) => Promise<any>;
+		logger?: any;
 	}) {
 		super();
 		this.graphName = config.graphName;
@@ -230,76 +295,144 @@ export class FalkorDbVectorStore extends VectorStore {
 		this._distanceMetric = config.distanceMetric || 'cosine';
 		this.similarityThreshold = config.similarityThreshold || 0.7;
 		this.httpRequest = config.httpRequest;
+		this.logger = config.logger || { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 	}
 
 	async addDocuments(documents: Document[]): Promise<void> {
-		const query = `
-			UNWIND $documents AS doc
-			CREATE (d:${this.nodeLabel} {
-				id: randomUUID(),
-				content: doc.content,
-				metadata: doc.metadata,
-				embedding: doc.embedding,
-				created_at: datetime()
-			})
-		`;
+		try {
+			this.logger.debug('FalkorDB Vector Store: Adding documents', {
+				documentCount: documents.length,
+				nodeLabel: this.nodeLabel,
+				graphName: this.graphName,
+			});
 
-		await this.executeQuery(query, {
-			documents: documents.map((doc) => ({
-				content: doc.pageContent,
-				metadata: doc.metadata || {},
-				embedding: this.generatePlaceholderEmbedding(doc.pageContent),
-			})),
-		});
+			const query = `
+				UNWIND $documents AS doc
+				CREATE (d:${this.nodeLabel} {
+					id: randomUUID(),
+					content: doc.content,
+					metadata: doc.metadata,
+					embedding: doc.embedding,
+					created_at: datetime()
+				})
+			`;
+
+			await this.executeQuery(query, {
+				documents: documents.map((doc) => ({
+					content: doc.pageContent,
+					metadata: doc.metadata || {},
+					embedding: this.generatePlaceholderEmbedding(doc.pageContent),
+				})),
+			});
+
+			this.logger.debug('FalkorDB Vector Store: Documents added successfully', {
+				documentCount: documents.length,
+			});
+		} catch (error) {
+			this.logger.error('FalkorDB Vector Store: Failed to add documents', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				documentCount: documents.length,
+				nodeLabel: this.nodeLabel,
+				graphName: this.graphName,
+			});
+			throw error;
+		}
 	}
 
 	async similaritySearch(query: string, k: number, filter?: IDataObject): Promise<Document[]> {
-		let cypherQuery = `
-			MATCH (d:${this.nodeLabel})
-		`;
-
-		const parameters: IDataObject = {
-			queryEmbedding: this.generatePlaceholderEmbedding(query),
-			limit: k,
-			threshold: this.similarityThreshold,
-		};
-
-		// Add metadata filter if provided
-		if (filter && Object.keys(filter).length > 0) {
-			const filterConditions = Object.entries(filter)
-				.map(([key, _value]) => `d.metadata.${key} = $filter_${key}`)
-				.join(' AND ');
-			cypherQuery += ` WHERE ${filterConditions}`;
-
-			Object.entries(filter).forEach(([key, value]) => {
-				parameters[`filter_${key}`] = value;
+		try {
+			this.logger.debug('FalkorDB Vector Store: Performing similarity search', {
+				query: query.substring(0, 100) + '...',
+				k,
+				filter,
+				nodeLabel: this.nodeLabel,
+				threshold: this.similarityThreshold,
 			});
+
+			let cypherQuery = `
+				MATCH (d:${this.nodeLabel})
+			`;
+
+			const parameters: IDataObject = {
+				queryEmbedding: this.generatePlaceholderEmbedding(query),
+				limit: k,
+				threshold: this.similarityThreshold,
+			};
+
+			// Add metadata filter if provided
+			if (filter && Object.keys(filter).length > 0) {
+				const filterConditions = Object.entries(filter)
+					.map(([key, _value]) => `d.metadata.${key} = $filter_${key}`)
+					.join(' AND ');
+				cypherQuery += ` WHERE ${filterConditions}`;
+
+				Object.entries(filter).forEach(([key, value]) => {
+					parameters[`filter_${key}`] = value;
+				});
+			}
+
+			cypherQuery += `
+				WITH d, vec.cosine_similarity(d.embedding, $queryEmbedding) AS score
+				WHERE score >= $threshold
+				RETURN d.content AS content, d.metadata AS metadata, score
+				ORDER BY score DESC
+				LIMIT $limit
+			`;
+
+			const results = await this.executeQuery(cypherQuery, parameters);
+
+			this.logger.debug('FalkorDB Vector Store: Similarity search completed', {
+				resultCount: results.length,
+				query: query.substring(0, 100) + '...',
+			});
+
+			return results.map((row: any) => ({
+				pageContent: row.content,
+				metadata: { ...row.metadata, score: row.score },
+			}));
+		} catch (error) {
+			this.logger.error('FalkorDB Vector Store: Similarity search failed', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				query: query.substring(0, 100) + '...',
+				k,
+				filter,
+				nodeLabel: this.nodeLabel,
+			});
+			throw error;
 		}
-
-		cypherQuery += `
-			WITH d, vec.cosine_similarity(d.embedding, $queryEmbedding) AS score
-			WHERE score >= $threshold
-			RETURN d.content AS content, d.metadata AS metadata, score
-			ORDER BY score DESC
-			LIMIT $limit
-		`;
-
-		const results = await this.executeQuery(cypherQuery, parameters);
-
-		return results.map((row: any) => ({
-			pageContent: row.content,
-			metadata: { ...row.metadata, score: row.score },
-		}));
 	}
 
 	async delete(ids: string[]): Promise<void> {
-		const query = `
-			MATCH (d:${this.nodeLabel})
-			WHERE d.id IN $ids
-			DETACH DELETE d
-		`;
+		try {
+			this.logger.debug('FalkorDB Vector Store: Deleting documents', {
+				ids,
+				idCount: ids.length,
+				nodeLabel: this.nodeLabel,
+			});
 
-		await this.executeQuery(query, { ids });
+			const query = `
+				MATCH (d:${this.nodeLabel})
+				WHERE d.id IN $ids
+				DETACH DELETE d
+			`;
+
+			await this.executeQuery(query, { ids });
+
+			this.logger.debug('FalkorDB Vector Store: Documents deleted successfully', {
+				idCount: ids.length,
+			});
+		} catch (error) {
+			this.logger.error('FalkorDB Vector Store: Failed to delete documents', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				ids,
+				idCount: ids.length,
+				nodeLabel: this.nodeLabel,
+			});
+			throw error;
+		}
 	}
 
 	private generatePlaceholderEmbedding(text: string): number[] {
@@ -307,18 +440,18 @@ export class FalkorDbVectorStore extends VectorStore {
 		// This is a simple placeholder - in production, use a real embedding model
 		const embedding = new Array(this._dimensions).fill(0);
 		let hash = 0;
-		
+
 		for (let i = 0; i < text.length; i++) {
 			const char = text.charCodeAt(i);
-			hash = ((hash << 5) - hash) + char;
+			hash = (hash << 5) - hash + char;
 			hash = hash & hash; // Convert to 32-bit integer
 		}
-		
+
 		// Create a simple pattern based on hash
 		for (let i = 0; i < this._dimensions; i++) {
 			embedding[i] = Math.sin(hash * (i + 1)) * 0.1 + Math.cos(hash * (i + 2)) * 0.1;
 		}
-		
+
 		// Normalize the embedding vector
 		const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
 		if (magnitude > 0) {
@@ -326,7 +459,7 @@ export class FalkorDbVectorStore extends VectorStore {
 				embedding[i] /= magnitude;
 			}
 		}
-		
+
 		return embedding;
 	}
 
@@ -347,93 +480,155 @@ export class FalkorDbVectorStore extends VectorStore {
 		const username = this._credentials.username as string;
 		const password = this._credentials.password as string;
 		const graphName = this.graphName;
-		
+
 		const baseURL = `${ssl ? 'https' : 'http'}://${host}:${port}`;
-		
-		// Get authentication session cookies
-		const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest);
-		
-		const endpoint = `/api/graph/${graphName}`;
-		
-		const requestOptions: IRequestOptions = {
-			method: 'POST',
+
+		this.logger.debug('FalkorDB Vector Store: Executing query', {
+			query: query.substring(0, 100) + '...',
+			parameters,
 			baseURL,
-			url: endpoint,
-			body: {
-				query,
-				parameters,
-			},
-			headers: {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json',
-				'Cookie': cookies,
-			},
-			json: true,
-		};
-		
+			graphName,
+		});
+
 		try {
+			// Get authentication session cookies
+			const cookies = await getSessionCookies(baseURL, username, password, this.httpRequest, this.logger);
+
+			const endpoint = `/api/graph/${graphName}`;
+
+			const requestOptions: IRequestOptions = {
+				method: 'POST',
+				baseURL,
+				url: endpoint,
+				body: {
+					query,
+					parameters,
+				},
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json',
+					Cookie: cookies,
+				},
+				json: true,
+			};
+
+			this.logger.debug('FalkorDB Vector Store: Making API request', {
+				url: `${baseURL}${endpoint}`,
+				method: requestOptions.method,
+				hasCookies: !!cookies,
+			});
+
 			const response = await this.httpRequest(requestOptions);
-			
+
+			this.logger.debug('FalkorDB Vector Store: Query response received', {
+				hasResult: !!response.result,
+				hasData: !!(response.result && response.result.data),
+				dataLength: response.result?.data?.length || 0,
+			});
+
 			if (response.result && response.result.data) {
 				return response.result.data;
 			}
-			
+
 			return [];
 		} catch (error) {
+			this.logger.error('FalkorDB Vector Store: Query execution failed', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				query: query.substring(0, 100) + '...',
+				parameters,
+				baseURL,
+				graphName,
+			});
 			throw new Error(`FalkorDB vector store query failed: ${(error as Error).message}`);
 		}
 	}
-
 }
 
 // Utility functions for session management
 export async function getSessionCookies(
-	baseURL: string, 
-	username: string, 
-	password: string, 
-	httpRequest: (options: IRequestOptions) => Promise<any>
+	baseURL: string,
+	username: string,
+	password: string,
+	httpRequest: (options: IRequestOptions) => Promise<any>,
+	logger?: any,
 ): Promise<string> {
-	// Get authentication providers
-	const providersResponse = await httpRequest({
-		method: 'GET',
-		baseURL,
-		url: '/api/auth/providers',
-		headers: {
-			'Content-Type': 'application/json',
-			'Accept': 'application/json',
-		},
-		json: true,
-	});
-	
-	const signinUrl = providersResponse.credentials?.signinUrl;
-	if (!signinUrl) {
-		throw new Error('Failed to get signin URL from FalkorDB auth providers');
-	}
-	
-	// Parse the signin URL to get the path
-	const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
-	
-	// Sign in with credentials
-	const signinResponse = await httpRequest({
-		method: 'POST',
-		baseURL,
-		url: signinPath,
-		body: {
+	const log = logger || { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+	try {
+		log.debug('FalkorDB Auth: Getting session cookies', {
+			baseURL,
 			username,
-			password,
-		},
-		headers: {
-			'Content-Type': 'application/json',
-			'Accept': 'application/json',
-		},
-		json: true,
-	});
-	
-	// Extract session cookies from response headers
-	const setCookieHeaders = signinResponse.headers?.['set-cookie'] || [];
-	const cookies = setCookieHeaders.map((cookie: string) => cookie.split(';')[0]).join('; ');
-	
-	return cookies;
+			hasPassword: !!password,
+		});
+
+		// Get authentication providers
+		const providersResponse = await httpRequest({
+			method: 'GET',
+			baseURL,
+			url: '/api/auth/providers',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json',
+			},
+			json: true,
+		});
+
+		log.debug('FalkorDB Auth: Providers response received', {
+			hasCredentials: !!providersResponse.credentials,
+			hasSigninUrl: !!providersResponse.credentials?.signinUrl,
+		});
+
+		const signinUrl = providersResponse.credentials?.signinUrl;
+		if (!signinUrl) {
+			log.error('FalkorDB Auth: Missing signin URL from providers', {
+				providersResponse,
+			});
+			throw new Error('Failed to get signin URL from FalkorDB auth providers');
+		}
+
+		// Parse the signin URL to get the path
+		const signinPath = signinUrl.replace(/^https?:\/\/[^\/]+/, '');
+
+		log.debug('FalkorDB Auth: Signing in with credentials', {
+			signinPath,
+			username,
+		});
+
+		// Sign in with credentials
+		const signinResponse = await httpRequest({
+			method: 'POST',
+			baseURL,
+			url: signinPath,
+			body: {
+				username,
+				password,
+			},
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json',
+			},
+			json: true,
+		});
+
+		// Extract session cookies from response headers
+		const setCookieHeaders = signinResponse.headers?.['set-cookie'] || [];
+		const cookies = setCookieHeaders.map((cookie: string) => cookie.split(';')[0]).join('; ');
+
+		log.debug('FalkorDB Auth: Session cookies extracted', {
+			cookieCount: setCookieHeaders.length,
+			hasCookies: !!cookies,
+		});
+
+		return cookies;
+	} catch (error) {
+		log.error('FalkorDB Auth: Session cookie authentication failed', {
+			error: (error as Error).message,
+			stack: (error as Error).stack,
+			baseURL,
+			username,
+		});
+		throw error;
+	}
 }
 
 export function getSessionId(context: any, itemIndex: number): string {
@@ -480,20 +675,16 @@ export function logWrapper(instance: any, _context: any): any {
 			const value = target[prop];
 			if (typeof value === 'function') {
 				return function (...args: any[]) {
-					// console.log(`Calling ${String(prop)} with args:`, args);
 					const result = value.apply(target, args);
 					if (result instanceof Promise) {
 						return result
 							.then((res) => {
-								// console.log(`${String(prop)} resolved with:`, res);
 								return res;
 							})
 							.catch((err) => {
-								// console.error(`${String(prop)} rejected with:`, err);
 								throw err;
 							});
 					}
-					// console.log(`${String(prop)} returned:`, result);
 					return result;
 				};
 			}
@@ -501,3 +692,4 @@ export function logWrapper(instance: any, _context: any): any {
 		},
 	});
 }
+

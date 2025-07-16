@@ -131,37 +131,79 @@ export class FalkorDbVectorStore implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-		const credentials = await this.getCredentials('falkorDbApi');
-		const graphName = this.getNodeParameter('graphName', itemIndex) as string;
-		const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex) as string;
-		const dimensions = this.getNodeParameter('dimensions', itemIndex) as number;
-		const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '') as string;
-		const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
+		try {
+			this.logger.debug('FalkorDB Vector Store: Starting data supply', {
+				itemIndex,
+				nodeType: this.getNode().type,
+				nodeName: this.getNode().name,
+			});
 
-		if (metadataFilter) {
-			try {
-				JSON.parse(metadataFilter); // Validate JSON format
-			} catch (error) {
-				throw new NodeOperationError(
-					this.getNode(),
-					`Invalid metadata filter JSON: ${(error as Error).message}`,
-					{ itemIndex },
-				);
+			const credentials = await this.getCredentials('falkorDbApi');
+			const graphName = this.getNodeParameter('graphName', itemIndex) as string;
+			const nodeLabel = this.getNodeParameter('nodeLabel', itemIndex) as string;
+			const dimensions = this.getNodeParameter('dimensions', itemIndex) as number;
+			const metadataFilter = this.getNodeParameter('metadataFilter', itemIndex, '') as string;
+			const options = this.getNodeParameter('options', itemIndex, {}) as IDataObject;
+
+			this.logger.debug('FalkorDB Vector Store: Configuration loaded', {
+				graphName,
+				nodeLabel,
+				dimensions,
+				hasMetadataFilter: !!metadataFilter,
+				options,
+			});
+
+			if (metadataFilter) {
+				try {
+					JSON.parse(metadataFilter); // Validate JSON format
+					this.logger.debug('FalkorDB Vector Store: Metadata filter validated', {
+						metadataFilter,
+					});
+				} catch (error) {
+					this.logger.error('FalkorDB Vector Store: Invalid metadata filter JSON', {
+						error: (error as Error).message,
+						stack: (error as Error).stack,
+						metadataFilter,
+						itemIndex,
+						nodeData: this.getNode(),
+					});
+					throw new NodeOperationError(
+						this.getNode(),
+						`Invalid metadata filter JSON: ${(error as Error).message}`,
+						{ itemIndex },
+					);
+				}
 			}
+
+			const vectorStore = new FalkorDbVectorStoreImpl({
+				graphName,
+				nodeLabel,
+				dimensions,
+				credentials,
+				distanceMetric: (options['distanceMetric'] as string) || 'cosine',
+				similarityThreshold: (options['similarityThreshold'] as number) || 0.7,
+				httpRequest: (options: any) => this.helpers.httpRequest(options),
+				logger: this.logger,
+			});
+
+			this.logger.debug('FalkorDB Vector Store: Vector store instance created successfully', {
+				graphName,
+				nodeLabel,
+				dimensions,
+			});
+
+			return {
+				response: vectorStore,
+			};
+		} catch (error) {
+			this.logger.error('FalkorDB Vector Store: Failed to supply data', {
+				error: (error as Error).message,
+				stack: (error as Error).stack,
+				itemIndex,
+				nodeData: this.getNode(),
+				executionId: this.getExecutionId(),
+			});
+			throw error;
 		}
-
-		const vectorStore = new FalkorDbVectorStoreImpl({
-			graphName,
-			nodeLabel,
-			dimensions,
-			credentials,
-			distanceMetric: (options['distanceMetric'] as string) || 'cosine',
-			similarityThreshold: (options['similarityThreshold'] as number) || 0.7,
-			httpRequest: (options: any) => this.helpers.httpRequest(options),
-		});
-
-		return {
-			response: vectorStore,
-		};
 	}
 }
