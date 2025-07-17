@@ -2,23 +2,25 @@
 
 ## Project Overview
 
-This is a comprehensive n8n community node package for FalkorDB, a graph database with AI integration capabilities. The package provides full integration with n8n workflows and LangChain for AI applications.
+This is a comprehensive n8n community node package for FalkorDB, a graph database with AI integration capabilities. The package provides AI-powered memory management for n8n workflows through knowledge graph construction and intelligent querying.
 
 ## Package Structure
 
 ### Core Components
-- **1 Node Type**: FalkorDB Vector Store for AI workflows
+- **1 Node Type**: FalkorDB Knowledge Graph for AI Agent memory management
 - **1 Credential Type**: FalkorDB API authentication with cookie-based sessions
-- **LangChain Integration**: Complete AI workflow support with vector store and memory utilities
+- **LangChain Integration**: Complete AI workflow support with memory utilities and graph-based context
 - **TypeScript**: Full type safety and modern development
 
 ### Node Types
-1. **FalkorDB Vector Store Node** (`FalkorDbVectorStore.node.ts`)
-   - Vector store supply node for AI agents
-   - Embedding storage and similarity search
-   - LangChain VectorStore integration
-   - Outputs: `NodeConnectionType.AiVectorStore`
-   - Supports metadata filtering and configurable similarity thresholds
+1. **FalkorDB Knowledge Graph Node** (`FalkorDbKnowledgeGraph.node.ts`)
+   - AI-powered memory management cluster node
+   - Entity and relationship extraction from conversations
+   - Knowledge graph construction in FalkorDB
+   - AI-generated Cypher queries for context retrieval
+   - Dual functionality: standalone processing and AI Agent memory integration
+   - Inputs: `NodeConnectionType.AiLanguageModel` (required), `NodeConnectionType.Main` (optional)
+   - Outputs: `NodeConnectionType.AiVectorStore`, `NodeConnectionType.Main`
 
 ## Development Standards
 
@@ -49,17 +51,19 @@ npm run dev        # Development with watch mode
 ## Technical Implementation
 
 ### LangChain Integration
-- **FalkorDbChatMemory**: Custom BaseChatMemory implementation
-- **FalkorDbVectorStore**: Custom VectorStore implementation
+- **FalkorDbKnowledgeGraphMemory**: Custom BaseChatMemory implementation for knowledge graph-based memory
+- **FalkorDbKnowledgeGraphStore**: Custom LangChain integration for graph operations
+- **AIEntityExtractor**: AI-powered entity and relationship extraction
 - **Session Management**: Multi-source session ID handling
 - **Connection Utilities**: Helper functions for AI integration
 
 ### Key Features
-- **Graph-native memory**: Leverages graph relationships for rich context
-- **Vector similarity search**: Embedding-based document retrieval
-- **Session persistence**: Conversation history across chat sessions
-- **Metadata filtering**: Advanced document filtering capabilities
-- **AI agent compatibility**: Full n8n AI workflow integration
+- **AI-powered knowledge graph construction**: Uses connected AI models to extract entities and relationships from conversations
+- **Intelligent context retrieval**: AI-generated Cypher queries for relevant memory retrieval
+- **Graph-native memory**: Leverages graph relationships for rich context understanding
+- **Session persistence**: Conversation history across chat sessions with graph-based storage
+- **Dual functionality**: Works as standalone processor and AI Agent memory integration
+- **Cluster node architecture**: Multiple inputs/outputs for flexible AI workflow integration
 
 ### API Integration
 - **FalkorDB REST API**: Complete HTTP client implementation with cookie-based authentication
@@ -76,8 +80,8 @@ npm run dev        # Development with watch mode
 │   └── FalkorDbApi.credentials.ts     # API authentication with cookie-based sessions
 ├── nodes/
 │   └── FalkorDb/
-│       ├── FalkorDbVectorStore.node.ts # Vector store supply node
-│       ├── FalkorDbVectorStore.node.json # Documentation metadata
+│       ├── FalkorDbKnowledgeGraph.node.ts # AI-powered knowledge graph memory node
+│       ├── FalkorDbKnowledgeGraph.node.json # Documentation metadata
 │       ├── FalkorDbLangChain.ts       # LangChain integration utilities
 │       └── falkordb.svg               # Custom node icon
 ├── dist/                              # Build output (auto-generated)
@@ -123,28 +127,32 @@ npm run dev        # Development with watch mode
 ### Installation
 ```bash
 # In n8n instance
-npm install n8n-nodes-falkordb
+npm install @lrtherond/n8n-nodes-falkordb
 ```
 
 ## Known Limitations
 
 ### Current Implementation
-- **Single node implementation**: Only vector store node is currently implemented
+- **AI-powered knowledge graph node**: Cluster node with AI model integration for memory management
 - **Cookie-based authentication**: Fully implemented FalkorDB session authentication
-- **LangChain integration**: Complete vector store and memory utilities with placeholder embeddings
+- **LangChain integration**: Complete memory utilities with graph-based context storage
+- **AI entity extraction**: Uses connected AI models for sophisticated entity and relationship extraction
 - **Limited testing**: No automated test suite currently
 
 ### Future Improvements
-- **Additional node types**: Implement database operations, memory, and vector operations nodes
-- **Real embedding integration**: Replace placeholder embeddings with actual embedding models
+- **Additional node types**: Implement direct database operations and graph query nodes
+- **Enhanced AI integration**: Support for more AI models and extraction patterns
 - **Comprehensive testing**: Add Jest test suite
 - **Performance optimization**: Implement connection pooling and session caching
-- **Advanced features**: Add more FalkorDB-specific operations and graph querying capabilities
+- **Advanced features**: Add more FalkorDB-specific operations and complex graph querying capabilities
 
 ## Dependencies
 
 ### Production Dependencies
 - **n8n-workflow**: Core n8n node interfaces and utilities (peer dependency)
+- **@langchain/core**: LangChain core interfaces for AI integration
+- **@langchain/community**: LangChain community integrations
+- **langchain**: Main LangChain library for AI workflows
 
 ### Development Dependencies
 - **TypeScript**: Language and compilation
@@ -169,13 +177,21 @@ npm install n8n-nodes-falkordb
 
 ## Version History
 
-### 0.1.0 (Current)
-- Initial release with 1 node type (FalkorDB Vector Store)
-- Complete n8n best practices compliance
-- Cookie-based authentication implementation
-- LangChain integration framework with vector store and memory utilities
-- Comprehensive ESLint configuration
-- Production-ready package structure
+### 1.0.1 (Current)
+- **Complete Architecture Redesign**: Cluster node with AI model integration
+- **AI-Powered Knowledge Graph**: Entity and relationship extraction using connected AI models
+- **Intelligent Query Generation**: AI-generated Cypher queries for context retrieval
+- **Dual Functionality**: Standalone processing and AI Agent memory integration
+- **LangChain Compatibility**: Proper integration with n8n's AI ecosystem
+- **Session Management**: Rich session-based memory with graph relationships
+
+### 0.1.6
+- Vector store implementation (deprecated)
+- Basic FalkorDB integration
+- Placeholder embedding generation
+
+### 0.1.0
+- Initial release with multiple node types (consolidated)
 
 ---
 

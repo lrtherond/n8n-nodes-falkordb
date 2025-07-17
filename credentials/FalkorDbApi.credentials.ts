@@ -75,15 +75,15 @@ export class FalkorDbApi implements ICredentialType {
 				'Content-Type': 'application/json',
 				Accept: 'application/json',
 			},
+			timeout: 10000, // 10 second timeout
 		},
 		rules: [
 			{
-				type: 'responseSuccessBody',
+				type: 'responseCode',
 				properties: {
-					key: 'credentials.signinUrl',
-					value: 'string',
+					value: 200,
 					message:
-						'Failed to connect to FalkorDB server or get authentication providers. Please verify your host, port, and SSL settings.',
+						'Failed to connect to FalkorDB server. Please verify your host, port, and SSL settings.',
 				},
 			},
 		],

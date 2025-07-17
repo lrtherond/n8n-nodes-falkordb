@@ -63,14 +63,14 @@ class FalkorDbApi {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                 },
+                timeout: 10000,
             },
             rules: [
                 {
-                    type: 'responseSuccessBody',
+                    type: 'responseCode',
                     properties: {
-                        key: 'credentials.signinUrl',
-                        value: 'string',
-                        message: 'Failed to connect to FalkorDB server or get authentication providers. Please verify your host, port, and SSL settings.',
+                        value: 200,
+                        message: 'Failed to connect to FalkorDB server. Please verify your host, port, and SSL settings.',
                     },
                 },
             ],

@@ -1,41 +1,71 @@
 import type { IDataObject, IRequestOptions } from 'n8n-workflow';
-export interface Document {
-    pageContent: string;
-    metadata?: IDataObject;
+import { BaseChatMemory } from '@langchain/community/memory/chat_memory';
+import type { InputValues, MemoryVariables, OutputValues } from '@langchain/core/memory';
+export interface GraphEntity {
+    id: string;
+    type: string;
+    name: string;
+    properties?: IDataObject;
 }
-export interface ChatMessage {
-    type: 'human' | 'ai' | 'system';
-    content: string;
-    timestamp?: Date;
+export interface GraphRelationship {
+    id: string;
+    type: string;
+    from: string;
+    to: string;
+    properties?: IDataObject;
 }
-export interface MemoryVariables {
-    [key: string]: string | ChatMessage[];
+export interface EntityExtractionResult {
+    entities: GraphEntity[];
+    relationships: GraphRelationship[];
 }
-export interface InputValues {
-    [key: string]: any;
+export declare class AIEntityExtractor {
+    private aiModel;
+    private logger;
+    constructor(aiModel: any, logger?: any);
+    extractEntitiesAndRelationships(text: string): Promise<EntityExtractionResult>;
+    generateContextQuery(inputText: string, availableEntityTypes: string[], availableRelationships: string[]): Promise<string>;
 }
-export interface OutputValues {
-    [key: string]: any;
+export declare class SimpleNLPExtractor {
+    private static readonly ENTITY_PATTERNS;
+    private static readonly RELATIONSHIP_PATTERNS;
+    static extractEntitiesAndRelationships(text: string): EntityExtractionResult;
 }
-export declare abstract class BaseChatMemory {
-    abstract loadMemoryVariables(values: InputValues): Promise<MemoryVariables>;
-    abstract saveContext(input: InputValues, output: OutputValues): Promise<void>;
-    abstract clear(): Promise<void>;
+export declare class FalkorDbKnowledgeGraphStore {
+    private graphName;
+    private _credentials;
+    private httpRequest;
+    private logger;
+    private aiExtractor?;
+    constructor(config: {
+        graphName: string;
+        credentials: IDataObject;
+        aiModel?: any;
+        httpRequest: (options: IRequestOptions) => Promise<any>;
+        logger?: any;
+    });
+    processText(text: string): Promise<void>;
+    private createOrUpdateEntity;
+    private createRelationship;
+    queryGraph(cypherQuery: string, parameters?: IDataObject): Promise<any[]>;
+    enrichFromMessage(message: string, sessionId?: string): Promise<{
+        entities: number;
+        relationships: number;
+    }>;
+    getContextForMessage(message: string, maxResults?: number): Promise<string[]>;
+    private createOrUpdateEntityWithSession;
+    private createRelationshipWithSession;
+    private executeQuery;
 }
-export declare abstract class VectorStore {
-    abstract addDocuments(documents: Document[]): Promise<void>;
-    abstract similaritySearch(query: string, k: number, filter?: IDataObject): Promise<Document[]>;
-    abstract delete(ids: string[]): Promise<void>;
-}
-export declare class FalkorDbChatMemory extends BaseChatMemory {
+export declare class FalkorDbKnowledgeGraphMemory extends BaseChatMemory {
+    memoryKeys: string[];
+    returnMessages: boolean;
+    inputKey: string;
+    outputKey: string;
     private sessionId;
     private _graphName;
     private contextWindowLength;
     private _credentials;
     private memoryKey;
-    private inputKey;
-    private outputKey;
-    private returnMessages;
     private httpRequest;
     private logger;
     constructor(config: {
@@ -50,40 +80,19 @@ export declare class FalkorDbChatMemory extends BaseChatMemory {
         httpRequest: (options: IRequestOptions) => Promise<any>;
         logger?: any;
     });
-    loadMemoryVariables(_values: InputValues): Promise<MemoryVariables>;
+    loadMemoryVariables(values: InputValues): Promise<MemoryVariables>;
     saveContext(input: InputValues, output: OutputValues): Promise<void>;
     clear(): Promise<void>;
     private getMessages;
     private addMessage;
-    private executeQuery;
-}
-export declare class FalkorDbVectorStore extends VectorStore {
-    private graphName;
-    private nodeLabel;
-    private _dimensions;
-    private _credentials;
-    private _distanceMetric;
-    private similarityThreshold;
-    private httpRequest;
-    private logger;
-    constructor(config: {
-        graphName: string;
-        nodeLabel: string;
-        dimensions: number;
-        credentials: IDataObject;
-        distanceMetric?: string;
-        similarityThreshold?: number;
-        httpRequest: (options: IRequestOptions) => Promise<any>;
-        logger?: any;
-    });
-    addDocuments(documents: Document[]): Promise<void>;
-    similaritySearch(query: string, k: number, filter?: IDataObject): Promise<Document[]>;
-    delete(ids: string[]): Promise<void>;
-    private generatePlaceholderEmbedding;
-    static fromDocuments(documents: Document[], _embeddings: any, config: any): Promise<FalkorDbVectorStore>;
+    private extractKnowledgeFromConversation;
+    private getRelevantContext;
+    private enrichWithKnowledgeGraph;
+    private formatContextAsString;
+    private createOrUpdateEntity;
+    private createRelationship;
     private executeQuery;
 }
 export declare function getSessionCookies(baseURL: string, username: string, password: string, httpRequest: (options: IRequestOptions) => Promise<any>, logger?: any): Promise<string>;
 export declare function getSessionId(context: any, itemIndex: number): string;
-export declare function getConnectionHintNoticeField(_connectionTypes: string[]): any;
-export declare function logWrapper(instance: any, _context: any): any;
+export declare function getConnectionHintNoticeField(connectionTypes: string[]): any;
