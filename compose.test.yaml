@@ -1,0 +1,28 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:6.0.2
+    entrypoint: [redis-server]
+    command:
+      - --loadmodule
+      - /var/lib/falkordb/bin/falkordb.so
+      - --requirepass
+      - revival-test-only
+    ports:
+      - 127.0.0.1:16379:6379
+    healthcheck:
+      test: [CMD, redis-cli, -a, revival-test-only, --no-auth-warning, ping]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  n8n-smoke:
+    profiles: [smoke]
+    image: docker.n8n.io/n8nio/n8n:2.42.6
+    entrypoint: [sh, /smoke/run.sh]
+    environment:
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+    volumes:
+      - ${N8N_SMOKE_DIR:-./tests/n8n}:/smoke:ro
+    depends_on:
+      falkordb:
+        condition: service_healthy

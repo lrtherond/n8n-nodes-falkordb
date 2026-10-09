@@ -1,17 +1,10 @@
-import type {
-	IAuthenticateGeneric,
-	ICredentialTestRequest,
-	ICredentialType,
-	INodeProperties,
-} from 'n8n-workflow';
+import type { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class FalkorDbApi implements ICredentialType {
 	name = 'falkorDbApi';
-
 	displayName = 'FalkorDB API';
-
-	documentationUrl = 'https://docs.falkordb.com';
-
+	icon = 'file:../nodes/FalkorDb/graph-query.png' as const;
+	documentationUrl = 'https://docs.falkordb.com/';
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Host',
@@ -19,22 +12,23 @@ export class FalkorDbApi implements ICredentialType {
 			type: 'string',
 			required: true,
 			default: 'localhost',
-			description: 'FalkorDB server hostname or IP address',
+			description: 'FalkorDB database hostname or IP address',
 		},
 		{
 			displayName: 'Port',
 			name: 'port',
 			type: 'number',
+			typeOptions: { minValue: 1, maxValue: 65535, numberPrecision: 0 },
 			required: true,
-			default: 3000,
-			description: 'FalkorDB REST API port number',
+			default: 6379,
+			description: 'FalkorDB database port',
 		},
 		{
 			displayName: 'Username',
 			name: 'username',
 			type: 'string',
 			default: '',
-			description: 'Username for authentication (optional)',
+			description: 'ACL username, if required by the database',
 		},
 		{
 			displayName: 'Password',
@@ -42,50 +36,14 @@ export class FalkorDbApi implements ICredentialType {
 			type: 'string',
 			typeOptions: { password: true },
 			default: '',
-			description: 'Password for authentication (optional)',
+			description: 'Database password, if required',
 		},
 		{
 			displayName: 'SSL/TLS',
 			name: 'ssl',
 			type: 'boolean',
 			default: false,
-			description: 'Whether to use SSL/TLS connection',
+			description: 'Whether to use TLS with certificate verification',
 		},
 	];
-
-	authenticate: IAuthenticateGeneric = {
-		type: 'generic',
-		properties: {
-			headers: {
-				'Content-Type': 'application/json',
-			},
-		},
-	};
-
-	// Note: This test only validates server connectivity and auth provider availability.
-	// Full authentication (signin with username/password) is performed at runtime due to
-	// n8n's ICredentialTestRequest limitation of supporting only single HTTP requests.
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL:
-				'={{$credentials.ssl ? "https" : "http"}}://{{$credentials.host}}:{{$credentials.port}}',
-			url: '/api/auth/providers',
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				Accept: 'application/json',
-			},
-			timeout: 10000, // 10 second timeout
-		},
-		rules: [
-			{
-				type: 'responseCode',
-				properties: {
-					value: 200,
-					message:
-						'Failed to connect to FalkorDB server. Please verify your host, port, and SSL settings.',
-				},
-			},
-		],
-	};
 }

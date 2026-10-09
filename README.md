@@ -1,292 +1,88 @@
 # n8n-nodes-falkordb
 
-> ⚠️ **Development Warning**: This package is currently under active development and should **NOT** be used in production environments. Features may be incomplete, unstable, or subject to breaking changes without notice.
+Development version 2 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
 
-This is an n8n community node package that provides FalkorDB-based memory management for AI Agent workflows in n8n.
+This is an independent community project. It is not affiliated with, endorsed by, or authorized by the makers of FalkorDB. The database name identifies compatibility; the nodes use original artwork.
 
-[FalkorDB](https://falkordb.com) is a graph database that provides powerful knowledge graph capabilities through its REST API, making it ideal for AI memory applications that require rich relationship modeling and context understanding.
+**FalkorDB Graph Query** takes your graph schema and a natural-language question, asks a connected Chat Model to generate Cypher, and submits it to FalkorDB for read-only execution. It supports arbitrary graph schemas; labels, properties, relationships, and retrieval strategies come from your inputs.
 
-## Installation
+Version 2 is a complete replacement for the published 1.x package. It provides the new schema-driven query, retriever, and agent-tool modes. The previous conversation-memory and graph-enrichment node is not included; workflows using that node must be rebuilt. There is no legacy compatibility layer or automatic migration.
 
-Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
+## Query an existing graph
 
-## Node
+You need an existing FalkorDB graph, its schema, database credentials, and a Chat Model configured in n8n. Embeddings are optional.
 
-This package includes one specialized cluster node designed for AI Agent memory management:
+1. Add **FalkorDB Graph Query** and choose a **Mode**.
+2. Configure **FalkorDB API** credentials with the database hostname and port as reachable from n8n. The usual database port is `6379`; the Browser HTTP endpoint is not a database connection.
+3. Enter the existing **Graph Name** and your **Schema**. Both are required. The schema is a multiline string supporting n8n expressions, such as `{{ $json.schema }}`. It is sent to the connected model on every question and is never executed as DDL.
+4. Optionally enter **Retrieval Guidance** for search strategies, ranking rules, fields to return, and example queries. This separate multiline field also supports expressions, such as `{{ $json.retrievalGuidance }}`.
+5. Connect a **Chat Model** to FalkorDB Graph Query. Choose a model capable of following JSON-output instructions and generating Cypher.
+6. Connect the selected mode as shown below.
 
-### FalkorDB Knowledge Graph Node (AI Agent Memory)
+| Mode                | Connection and behavior                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Query               | Main input/output. Reads **Question** for each input item; returns the generated query and database rows.        |
+| Retriever for Chain | Connect to a **Question and Answer Chain → Retriever**. The chain provides the question and receives documents.  |
+| Tool for AI Agent   | Connect to an **AI Agent → Tool**. Set **Tool Description** so the agent knows when to ask the graph a question. |
 
-A cluster node that leverages AI models to build and query knowledge graphs for intelligent memory management in AI workflows.
+The chain or agent also needs its own Chat Model connection. You can use the same model node for both connections. In retriever and tool modes, schema and other expressions resolve from the **first input item**, following n8n sub-node behavior. Query mode resolves them independently for every input item.
 
-**Features:**
-- AI-powered entity and relationship extraction from conversations
-- Knowledge graph construction in FalkorDB
-- AI-generated Cypher queries for context retrieval
-- Session-based memory management
-- Integration with n8n AI Agent nodes
-- LangChain compatibility for seamless workflow integration
+### Describe your schema
 
-**Connection Types:**
-- **Inputs**: 
-  - `AiLanguageModel` (required) - AI model for entity extraction and query generation
-  - `Main` (optional) - Text input for processing
-- **Outputs**: 
-  - `AiVectorStore` (connects to AI Agent nodes for memory)
-  - `Main` - Processing results and statistics
+Keep the graph definition in **Schema**: labels, property names and types, relationship directions, available indexes, and what each element means. Plain text, YAML, or a JSON string are suitable; the node passes the definition to the model as text without requiring a particular schema format.
 
-**Key Operations:**
-- Extract entities and relationships from natural language using AI
-- Build knowledge graphs with rich relationship modeling
-- Generate intelligent context queries for memory retrieval
-- Dual functionality: standalone processing and AI Agent memory integration
+For example, a project graph could use:
 
-## Credentials
-
-You need to create a FalkorDB API credential with the following information:
-
-- **Host**: FalkorDB server hostname or IP address (default: localhost)
-- **Port**: FalkorDB REST API port (default: 3000)
-- **Username**: Username for authentication (optional)
-- **Password**: Password for authentication (optional)
-- **SSL/TLS**: Whether to use SSL/TLS connection (default: false)
-
-## Example Usage
-
-### AI Agent Memory Integration
-
-1. **Add AI Language Model**
-   - Add your preferred AI model node (OpenAI, Claude, etc.)
-   - Configure with appropriate credentials
-
-2. **Add FalkorDB Knowledge Graph Node**
-   - Drag the **FalkorDB Knowledge Graph** node into your workflow
-   - Configure the FalkorDB API credentials
-   - Set graph name (e.g., `ai-memory`)
-   - Connect the AI model to the Knowledge Graph node
-
-3. **Connect to AI Agent**
-   - Connect the FalkorDB Knowledge Graph node output to your AI Agent node
-   - The AI Agent will automatically use the knowledge graph for memory
-   - Memory is persisted and enriched across workflow executions
-
-### Sample Workflow
-
-```
-[OpenAI Model] ──┐
-                 │
-Chat Trigger ────┤── [FalkorDB Knowledge Graph] ──── [AI Agent] ──── Response
-                 │          (Memory)
-[FalkorDB Creds] ─┘
+```text
+Employee {name: STRING} — a person working on projects.
+Project {title: STRING, citation: STRING} — title and source reference.
+(Employee)-[:WORKS_ON]->(Project)
 ```
 
-The AI Agent will:
-- Extract entities and relationships from conversations using the connected AI model
-- Build a knowledge graph in FalkorDB with rich relationship modeling
-- Generate intelligent context queries for memory retrieval
-- Maintain persistent, queryable memory across sessions
+In **Retrieval Guidance**, enter `Use Employee.name to find a person. Return Project.title and Project.citation.` Then ask **Which projects does Alice work on?** The graph need not contain documents or embeddings. Guidance is optional and is sent to query generation separately from the schema in all three modes.
 
-### Example Knowledge Graph Construction
+For a document graph with a full-text index, put search terms, ranking semantics, and working query examples in **Retrieval Guidance**, such as `db.idx.fulltext.queryNodes` with `ORDER BY score DESC`. The node preserves database result order; relevance ranking requires a supported search method described in the supplied schema or guidance. It does not invent scores or generate embeddings.
 
-**Human Input**: "I, Laurent, love apples and work at Google"
+The workflow author maintains the schema and any retrieval guidance. Automatic schema discovery, document ingestion, vector embedding generation, and automatic query repair are outside this version.
 
-**AI Extraction**:
-```json
-{
-  "entities": [
-    {"name": "Laurent", "type": "Person", "id": "person_laurent"},
-    {"name": "apples", "type": "Food", "id": "food_apples"},
-    {"name": "Google", "type": "Company", "id": "company_google"}
-  ],
-  "relationships": [
-    {"from": "person_laurent", "to": "food_apples", "type": "LOVES"},
-    {"from": "person_laurent", "to": "company_google", "type": "WORKS_AT"}
-  ]
-}
-```
+### Results and execution boundaries
 
-**Knowledge Graph Result**:
-```
-(Laurent:Person)-[:LOVES]->(apples:Food)
-(Laurent:Person)-[:WORKS_AT]->(Google:Company)
-```
-
-**Future Context Query**: "What should I eat for lunch?"
-
-**AI-Generated Cypher Query**:
-```cypher
-MATCH (p:Person)-[r:LOVES|LIKES]->(f:Food) 
-WHERE p.name = 'Laurent'
-RETURN f.name, f.type, r.type
-LIMIT 20
-```
-
-**Context Retrieved**: "Laurent loves apples"
-
-## Configuration Options
-
-### Knowledge Graph Settings
-
-- **Graph Name**: FalkorDB graph name for memory storage (default: `memory`)
-
-The node uses sensible defaults and leverages the connected AI model for intelligent processing.
-
-### Memory Features
-
-- **AI-Powered Extraction**: Uses connected AI models for sophisticated entity and relationship extraction
-- **Knowledge Graph Construction**: Builds rich, queryable knowledge graphs in FalkorDB
-- **Intelligent Querying**: AI-generated Cypher queries for context retrieval
-- **Session Management**: Automatic session-based memory isolation
-- **Persistent Storage**: Memory survives workflow restarts
-- **Dual Functionality**: Works as both standalone processor and AI Agent memory
-
-## API Integration
-
-### FalkorDB REST API
-
-This node integrates with FalkorDB's REST API available at `http://<hostname>:3000/api`:
-
-- **Endpoint**: `/api/graph/{graph_name}`
-- **Method**: POST
-- **Authentication**: Cookie-based session authentication
-- **Content-Type**: application/json
-
-### Request Format
+Query mode returns one item per question, including an empty `rows` array when nothing matches:
 
 ```json
 {
-  "query": "CYPHER_QUERY",
-  "parameters": {
-    "param1": "value1",
-    "param2": "value2"
-  }
+	"cypher": "MATCH (e:Employee {name: $name})-[:WORKS_ON]->(p:Project) RETURN p.title AS text, p.citation AS citation LIMIT $limit",
+	"parameters": { "name": "Alice", "limit": 10 },
+	"rows": [{ "text": "Apollo", "citation": "P1" }],
+	"truncated": false
 }
 ```
 
-## AI Workflow Integration
+Tool mode gives the agent the same structure as JSON, wrapped in n8n's output-item array when executed by the current Agent. Retriever mode creates one LangChain document per row, preserving the whole row in both JSON page content and metadata so citations remain available to a chain. FalkorDB Graph Query returns evidence; the downstream chain or agent produces the prose answer.
 
-### LangChain Compatibility
+For complete quotations, tell the answering chain or agent to quote each selected passage's entire returned text verbatim, preserving words, punctuation, and paragraphs. Require source citations and prohibit summaries or inserted ellipses. This instruction belongs in the chain's system prompt or agent's system message; **Retrieval Guidance** controls query generation. Verify quotations against the retrieved rows, since model-generated answers can still alter text. Query mode returns the database rows directly.
 
-- **Memory Interface**: Compatible with LangChain's `BaseChatMemory`
-- **Message Processing**: Handles conversation flow and context
-- **Session Management**: Automatic session handling for AI workflows
-- **Graph Integration**: Seamless integration with n8n's AI ecosystem
+Each retriever invocation records its question, generated Cypher, parameters, and returned rows in n8n's execution log. Retrieval failures are recorded on the retriever node and propagated to the chain. The agent tool exposes a required `question` argument so the agent can make successive searches with different questions.
 
-### Use Cases
+Generated JSON and parameter names are validated before execution. All FalkorDB Graph Query database queries use `GRAPH.RO_QUERY`, including the initial access check; no graph or index is created. FalkorDB enforces the read-only boundary. Invalid model output, unsupported Cypher, missing graphs, timeouts, and model-reported unanswerable questions fail with an error. Query mode honors n8n's continue-on-fail setting.
 
-- **Conversational AI**: Persistent, intelligent memory across chat sessions
-- **Knowledge Retention**: Long-term memory with rich relationship modeling
-- **Multi-turn Conversations**: Context-aware responses with graph-based memory
-- **Fact Extraction**: Automatic knowledge graph construction from conversations
-- **Semantic Understanding**: AI-powered entity and relationship recognition
+**Limit** defaults to 10 rows (maximum 1,000). The model is instructed to include a corresponding `LIMIT`, and the node caps the returned rows independently. `truncated` indicates this local cap, not whether more matches exist in the graph. A **Query Timeout** defaults to 10,000 ms (maximum 60,000 ms) and applies to each database query. The output cap does not bound database work, response bytes, or model runtime; large aggregate values still occupy one row. Read-only queries can still be expensive or semantically wrong, so evaluate your model against representative questions and keep the schema accurate.
 
-## Architecture
+Credentials support an optional ACL username/password and TLS with certificate verification. FalkorDB Graph Query needs `INFO` and `GRAPH.RO_QUERY`; the credential test additionally calls `GRAPH.LIST`. Use a database account appropriate to the graphs the workflow should access.
 
-### Knowledge Graph Memory Management
+## Compatibility and availability
 
-- **Entities**: People, objects, concepts stored as graph nodes
-- **Relationships**: Connections between entities (LOVES, WORKS_AT, KNOWS, etc.)
-- **AI-Powered Processing**: Leverages connected AI models for extraction and querying
-- **Rich Context**: Graph relationships provide deeper context than simple vector similarity
+Version 2 is a development version (`2.0.0-dev.0`), not a production release. These instructions describe the code in this repository. For installation from source and local testing, see the [development guide](dev/README.md).
 
-### Cluster Node Design
+FalkorDB server integration is tested against releases 6.0.2 and 4.20.7, with isolated test graphs. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
 
-- **Multiple Inputs**: AI model and optional text input
-- **Dual Outputs**: Memory interface for AI Agents and processing results
-- **Flexible Integration**: Works with any LangChain-compatible AI model
-- **Scalable Architecture**: Handles complex knowledge graphs efficiently
+This package targets self-hosted n8n. n8n Cloud support is not established. Node.js 24 or newer is required.
 
-## Resources
+## References
 
-- [FalkorDB Documentation](https://docs.falkordb.com/)
-- [FalkorDB REST API](https://docs.falkordb.com/integration/rest.html)
-- [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
-- [n8n AI Agent Documentation](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.agent/)
-
-## Development
-
-### Build Instructions
-
-To build the package for development or publishing:
-
-```bash
-# Install dependencies
-npm install
-
-# Build the package (compiles TypeScript and copies assets)
-npm run build
-
-# Run linting checks
-npm run lint
-
-# Auto-fix linting issues
-npm run lintfix
-
-# Format code
-npm run format
-
-# Development with watch mode
-npm run dev
-```
-
-### Publishing to npm
-
-To prepare and publish this package to npm:
-
-1. **Ensure all tests pass and code is clean:**
-   ```bash
-   npm run build
-   npm run lint
-   npm run format
-   ```
-
-2. **Update version in package.json:**
-   ```bash
-   npm version patch  # for bug fixes
-   npm version minor  # for new features
-   npm version major  # for breaking changes
-   ```
-
-3. **Run pre-publish checks:**
-   ```bash
-   npm run prepublishOnly
-   ```
-
-4. **Publish to npm:**
-   ```bash
-   npm publish
-   ```
-
-   For first-time publishing, you may need to login:
-   ```bash
-   npm login
-   npm publish
-   ```
-
-### Development Guidelines
-
-- All code must pass ESLint checks with n8n community standards
-- TypeScript compilation must be error-free
-- Follow existing code patterns and n8n conventions
-- Test all node operations thoroughly before publishing
+- [FalkorDB TypeScript client](https://github.com/FalkorDB/falkordb-ts)
+- [FalkorDB 6.0.2 release](https://github.com/FalkorDB/FalkorDB/releases/tag/v6.0.2)
 
 ## License
 
 MIT
-
-## Version History
-
-### 1.0.1 (Current)
-- **Complete Architecture Redesign**: Cluster node with AI model integration
-- **AI-Powered Knowledge Graph**: Entity and relationship extraction using connected AI models
-- **Intelligent Query Generation**: AI-generated Cypher queries for context retrieval
-- **Dual Functionality**: Standalone processing and AI Agent memory integration
-- **LangChain Compatibility**: Proper integration with n8n's AI ecosystem
-- **Session Management**: Rich session-based memory with graph relationships
-
-### 0.1.6
-- Vector store implementation (deprecated)
-- Basic FalkorDB integration
-- Placeholder embedding generation
-
-### 0.1.0
-- Initial release with multiple node types (consolidated)

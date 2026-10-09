@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [24, 26]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: docker compose -f compose.test.yaml up -d --wait
+      - run: npm run test:integration
+      - if: matrix.node == 24
+        run: npm run test:n8n
+      - run: npm pack --dry-run
+      - if: always()
+        run: docker compose -f compose.test.yaml down

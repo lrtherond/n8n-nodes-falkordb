@@ -1,0 +1,46 @@
+name: n8n-falkordb-dev
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.42.6
+    restart: unless-stopped
+    entrypoint: [tini, --, /bin/sh, /local-setup/start.sh]
+    ports:
+      - 127.0.0.1:5678:5678
+    environment:
+      GENERIC_TIMEZONE: America/Denver
+      TZ: America/Denver
+      N8N_HOST: localhost
+      N8N_PROTOCOL: http
+      N8N_EDITOR_BASE_URL: http://localhost:5678
+      WEBHOOK_URL: http://localhost:5678/
+      N8N_SECURE_COOKIE: 'false'
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: 'true'
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./.n8n/node-package:/local-node:ro
+      - ./dev/n8n/start.sh:/local-setup/start.sh:ro
+    networks:
+      - stoic_graph
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:5678/healthz/readiness').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 30
+
+volumes:
+  n8n_data:
+
+networks:
+  stoic_graph:
+    external: true
+    name: stoic-kg_default

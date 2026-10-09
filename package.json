@@ -1,7 +1,7 @@
 {
 	"name": "@lrtherond/n8n-nodes-falkordb",
-	"version": "1.0.2",
-	"description": "n8n community node for FalkorDB graph database with AI integration",
+	"version": "2.0.0-dev.0",
+	"description": "Independent n8n integration for schema-guided natural-language queries and RAG with FalkorDB",
 	"keywords": [
 		"n8n-community-node-package",
 		"n8n",
@@ -10,8 +10,7 @@
 		"database",
 		"cypher",
 		"ai",
-		"memory",
-		"vector-store",
+		"rag",
 		"langchain"
 	],
 	"license": "MIT",
@@ -25,19 +24,31 @@
 		"url": "https://github.com/lrtherond/n8n-nodes-falkordb.git"
 	},
 	"engines": {
-		"node": ">=20.15"
+		"node": ">=24.0.0"
 	},
-	"main": "index.js",
 	"scripts": {
-		"build": "npx rimraf dist && tsc && gulp build:icons",
-		"dev": "tsc --watch",
-		"format": "prettier nodes credentials --write",
-		"lint": "eslint nodes credentials package.json",
-		"lintfix": "eslint nodes credentials package.json --fix",
-		"prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json"
+		"build": "n8n-node build",
+		"dev": "n8n-node dev",
+		"dev:docker": "node dev/n8n/start.mjs",
+		"dev:docker:stop": "docker compose -f compose.dev.yaml down",
+		"dev:docker:logs": "docker compose -f compose.dev.yaml logs -f n8n",
+		"typecheck": "tsc --noEmit && tsc --project tsconfig.test.json",
+		"lint": "n8n-node lint",
+		"lint:markdown": "markdownlint-cli2 \"**/*.{md,markdown}\" \"#node_modules\" \"#dist\" \"#coverage\" \"#.n8n\"",
+		"lintfix": "n8n-node lint --fix",
+		"format": "prettier nodes credentials tests *.json *.mjs *.mts .markdownlint.jsonc \"**/*.{md,markdown}\" --write",
+		"format:check": "prettier nodes credentials tests *.json *.mjs *.mts .markdownlint.jsonc \"**/*.{md,markdown}\" --check",
+		"test": "vitest run --project unit",
+		"test:coverage": "vitest run --project unit --coverage",
+		"test:watch": "vitest --project unit",
+		"test:integration": "vitest run --project integration",
+		"check": "npm run typecheck && npm run lint && npm run lint:markdown && npm run format:check && npm run test:coverage && npm run build",
+		"prepublishOnly": "npm run check",
+		"test:n8n": "npm run build && node tests/n8n/run.mjs"
 	},
 	"files": [
-		"dist"
+		"dist/credentials",
+		"dist/nodes"
 	],
 	"n8n": {
 		"n8nNodesApiVersion": 1,
@@ -45,26 +56,27 @@
 			"dist/credentials/FalkorDbApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/FalkorDb/FalkorDbKnowledgeGraph.node.js"
-		]
+			"dist/nodes/FalkorDb/FalkorDbQuery.node.js"
+		],
+		"strict": false
 	},
 	"devDependencies": {
-		"@typescript-eslint/eslint-plugin": "~8.32.0",
-		"@typescript-eslint/parser": "~8.32.0",
-		"eslint": "^8.57.0",
-		"eslint-plugin-n8n-nodes-base": "^1.16.3",
-		"gulp": "^5.0.0",
-		"n8n-workflow": "*",
-		"prettier": "^3.5.3",
-		"rimraf": "^6.0.1",
-		"typescript": "^5.8.2"
+		"@n8n/node-cli": "0.51.4",
+		"@types/node": "24.19.1",
+		"@vitest/coverage-v8": "5.0.3",
+		"eslint": "9.39.5",
+		"markdownlint-cli2": "0.23.3",
+		"n8n-workflow": "2.42.3",
+		"prettier": "3.9.9",
+		"typescript": "6.0.3",
+		"vitest": "5.0.3"
 	},
 	"dependencies": {
-		"@langchain/core": "^0.3.0",
-		"@langchain/community": "^0.3.0",
-		"langchain": "^0.3.0"
+		"@langchain/core": "1.2.17",
+		"falkordb": "6.8.0",
+		"zod": "3.25.76"
 	},
 	"peerDependencies": {
-		"n8n-workflow": "*"
+		"n8n-workflow": ">=2.42.3 <3"
 	}
 }
