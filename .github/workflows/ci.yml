@@ -10,6 +10,8 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      FALKORDB_TEST_IMAGE: mirror.gcr.io/falkordb/falkordb:6.0.2@sha256:107455e862a824e45e8e9f5a7fbfdf5e00a08b14e13eae2577c72fd9e3f59ba6
     strategy:
       matrix:
         node: [24, 26]
@@ -21,17 +23,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: Configure Docker Hub mirror
-        run: |
-          sudo python3 - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('/etc/docker/daemon.json')
-          config = json.loads(path.read_text()) if path.exists() else {}
-          config['registry-mirrors'] = ['https://mirror.gcr.io']
-          path.write_text(json.dumps(config))
-          PY
-          sudo systemctl restart docker
       - run: docker compose -f compose.test.yaml up -d --wait
       - run: npm run test:integration
       - if: matrix.node == 24
