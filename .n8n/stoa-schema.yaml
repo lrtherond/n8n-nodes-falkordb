@@ -1,0 +1,132 @@
+# Stoic Knowledge Graph — metamodel (single source of truth)
+#
+# The stoickg package reads this file to generate every index and constraint
+# (`stoickg ddl` / `stoickg init`), to validate ingestion files before writing
+# them (`stoickg load`), and to audit the live graph (`stoickg verify`).
+# Change the schema here, never by hand in the database.
+# Design rationale: docs/STOIC_KG_SCHEMA.md. Input format: docs/INGESTION_FORMAT.md.
+
+graph: stoa                # default graph key; override with STOICKG_GRAPH
+
+vector:
+  dimension: 1024          # must equal your embedding model's output size; override with STOICKG_VECTOR_DIM
+  similarity: cosine       # cosine for normalised text embeddings
+
+fulltext:
+  language: english
+
+# Every node carries the base label plus exactly one primary label.
+# Primary labels marked searchable: true also carry the Searchable label,
+# which owns one full-text index and one vector index spanning all of them.
+base_label: Entity
+searchable_label: Searchable
+
+# Properties concatenated (with diacritic-folded copies) into Searchable.search_text.
+# FalkorDB full-text indexes skip array properties, hence the flattening.
+search_fields: [name, term, term_original, name_original, title_original, abbreviation, coined_by]
+search_list_fields: [latin, aliases]
+# First non-empty property appended to `name` to form the text embedded for Searchable nodes.
+embed_fields: [definition, statement, description, bio]
+
+node_labels:
+  Person:
+    section: persons          # key of the list in ingestion files
+    id_prefix: "person:"
+    searchable: true
+    required: [name]
+    indexed: [floruit, stoa_phase]
+    enums: {stoa_phase: stoa_phase}
+  School:
+    section: schools
+    id_prefix: "school:"
+    searchable: true
+    required: [name]
+  Work:
+    section: works
+    id_prefix: "work:"
+    searchable: true
+    required: [name, lang]
+    indexed: [cts_urn]
+    enums: {extant: extant}
+  Passage:
+    section: passages
+    id_prefix: "passage:"
+    required: [citation, ref]        # name defaults to citation; `work` field becomes PART_OF
+    indexed: [cts_urn, concordance]
+  Rendering:
+    section: renderings
+    id_prefix: "rendering:"          # id defaults to rendering:<passage-id-without-prefix>@<lang>
+    required: [lang, text, license, extent]   # `passage` field becomes RENDERS
+    indexed: [lang]
+    enums: {extent: extent}
+  Concept:
+    section: concepts
+    id_prefix: "concept:"
+    searchable: true
+    required: [name, term, definition]
+    indexed: [term]
+    secondary: [Passion, GoodFeeling, Virtue, Vice, Indifferent, Discipline, Physics, Logic, Ethics]
+    enums: {object_value: object_value, time: time}
+  Practice:
+    section: practices
+    id_prefix: "practice:"
+    searchable: true
+    required: [name, label_origin, description]
+    enums: {label_origin: label_origin}
+  Thesis:
+    section: theses
+    id_prefix: "thesis:"
+    searchable: true
+    required: [name, statement]
+    secondary: [Physics, Logic, Ethics]
+
+enums:
+  basis: [ancient, scholarly, editorial, extracted]
+  stance: [affirms, denies, modifies]
+  report_mode: [own_words, recorded_teaching, verbatim_quote, quoted_in_translation, paraphrase, doxography, hostile_report]
+  author_role: [author, recorder, compiler]
+  focus: [primary, mention]
+  label_origin: [ancient_term, descriptive, modern_coinage]
+  stoa_phase: [early, middle, imperial]
+  extant: [complete, partial, fragmentary, lost]
+  extent: [full, excerpt]
+  object_value: [good, bad]
+  time: [present, future]
+
+# Conditional provenance is validated before loading and audited after loading.
+# Extracted assertions remain machine proposals even when their quotations match.
+extraction:
+  required: [extractor, extracted_at]
+
+# Relationship classes
+#   structural : bookkeeping facts about the corpus and the graph itself
+#   assertion  : claims about the Stoic world; MUST carry provenance:
+#                basis (enum, mandatory constraint), evidence (passage ids),
+#                scholarly_ref (required when basis = scholarly), note (optional)
+# symmetric: true  -> the loader writes the edge in both directions so every
+#                     traversal can stay directed.
+relationships:
+  # ---- structural ----------------------------------------------------------
+  AUTHORED:       {class: structural, from: [Person],    to: [Work],     required: [role], enums: {role: author_role}}
+  PART_OF:        {class: structural, from: [Passage],   to: [Work]}
+  RENDERS:        {class: structural, from: [Rendering], to: [Passage]}
+  REPORTS:        {class: structural, from: [Passage],   to: [Person, School], required: [mode], enums: {mode: report_mode}}
+  QUOTES:         {class: structural, from: [Passage],   to: [Work]}
+  DISCUSSES:      {class: structural, from: [Passage],   to: [Person, Concept, Practice, Thesis], required: [focus], enums: {focus: focus}}
+  MEMBER_OF:      {class: structural, from: [Person],    to: [School]}
+  INVOLVES:       {class: structural, from: [Thesis],    to: [Concept]}
+  # ---- assertion: people and lineage --------------------------------------
+  STUDIED_UNDER:  {class: assertion, from: [Person], to: [Person]}
+  SUCCEEDED:      {class: assertion, from: [Person], to: [Person]}
+  INFLUENCED_BY:  {class: assertion, from: [Person], to: [Person]}
+  INTRODUCED:     {class: assertion, from: [Person], to: [Concept]}
+  HOLDS:          {class: assertion, from: [Person, School], to: [Thesis], required: [stance], enums: {stance: stance}}
+  # ---- assertion: doctrine -------------------------------------------------
+  SPECIES_OF:     {class: assertion, from: [Concept],     to: [Concept]}
+  COUNTERPART_OF: {class: assertion, from: [GoodFeeling], to: [Passion]}
+  OPPOSES:        {class: assertion, from: [Concept],     to: [Concept], symmetric: true}
+  IDENTIFIED_WITH: {class: assertion, from: [Concept],    to: [Concept], symmetric: true}
+  PRESUPPOSES:    {class: assertion, from: [Concept],     to: [Concept]}
+  APPLIES:        {class: assertion, from: [Practice],    to: [Concept]}
+  REMEDIES:       {class: assertion, from: [Practice],    to: [Passion]}
+  TRAINS:         {class: assertion, from: [Practice],    to: [Discipline]}

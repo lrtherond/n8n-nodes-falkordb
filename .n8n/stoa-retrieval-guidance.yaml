@@ -9,13 +9,12 @@ purpose: >-
   answering agent to evaluate; do not compose the mentor's answer in Cypher.
 inventory:
   observed_at: '2026-10-09'
-  populated: [Person, School, Work, Passage, Rendering]
-  not_populated: [Concept, Practice, Thesis]
+  populated: [Person, School, Work, Passage, Rendering, Concept, Practice, Thesis]
   guidance: >-
-    These are observations, not permanent schema restrictions. The current corpus supports
-    text retrieval and corpus/provenance traversal. Do not assume doctrine or practice
-    edges contain evidence merely because they are defined in the schema. Empty results
-    are valid. The corpus also contains non-Stoic authors and witnesses.
+    Text and doctrinal retrieval are available. All currently observed assertion edges have
+    basis extracted; generated doctrinal nodes have review_status unreviewed. These are
+    dated observations, not permanent restrictions. Read each result's actual provenance.
+    The corpus also contains non-Stoic authors and witnesses. Empty results are valid.
 
 retrieval_strategy:
   - >-
@@ -26,8 +25,8 @@ retrieval_strategy:
     they do not turn arbitrary full-text syntax into literal text. Generate simple search
     expressions rather than copying punctuation or operators from the user's message.
   - >-
-    Default to English renderings (lang = en) and passages reporting a Person connected by
-    MEMBER_OF to School named Stoa, with REPORTS.mode own_words or recorded_teaching.
+    For practical text-first retrieval, default to English renderings (lang = en) reporting
+    a Person connected by MEMBER_OF to School named Stoa, with REPORTS.mode own_words or recorded_teaching.
     This is a retrieval policy, not proof that every sentence expresses a Stoic doctrine.
     A passage may discuss or quote an opponent; return the context and attribution.
   - >-
@@ -37,9 +36,22 @@ retrieval_strategy:
     default school/mode filters while preserving the requested scope and report modes.
     Do not silently substitute another author when a targeted search has no results.
   - >-
-    Use Searchable.name/search_text for resolving people and works, then stable IDs for
-    exact lookup when supplied. Never invent IDs or citations. Apply all requested
+    Use Searchable.name/search_text for resolving people, works, concepts, practices, and
+    theses, then stable IDs for exact lookup when supplied. Never invent IDs or citations. Apply all requested
     language, author, work, and exclusion filters before LIMIT.
+  - >-
+    Use doctrine-first retrieval when the question concerns a teaching, a practice, a
+    proposed remedy, or a relationship between ideas. Resolve a few specific entities;
+    follow incoming DISCUSSES links to passages or relevant assertion edges to their
+    evidence Passage IDs, then retrieve Rendering.text with work and speaker attribution.
+    Start with direct links, not broad multi-hop expansion. Do not return only citations
+    or doctrinal summaries when the caller needs evidence for an answer.
+  - >-
+    For doctrine-linked evidence, retain cited witnesses even when they are not Stoic
+    authors or their REPORTS mode is doxography or paraphrase. Preserve those distinctions
+    rather than applying the practical text-first school/mode filters blindly. Explicit
+    author, language, and work restrictions still apply. A non-Stoic source discussing an
+    idea does not establish that it is Stoic teaching.
   - >-
     Normally return three candidates, never exceeding the supplied node limit or a smaller
     requested count. Order full-text results by score descending with stable ID tie-breaks.
@@ -63,6 +75,47 @@ retrieval_strategy:
     do not use the catalogue's vector rag-context query, invent vectors, or treat stored
     document vectors as an embedding of the question. Use full-text search and traversal.
 
+doctrinal_provenance:
+  - >-
+    basis extracted means an unreviewed machine proposal, even if its supporting quotation
+    exactly matches the source. Textual presence is not proof of entailment, attribution,
+    or philosophical correctness. Never relabel extracted as ancient or omit its basis
+    to make an answer seem authoritative. Include extracted in exploratory assertion
+    retrieval, with provisional = true; honor requests that explicitly exclude it.
+  - >-
+    basis ancient, scholarly, and editorial must also retain their distinct meanings.
+    Return each assertion's direction, basis, evidence Passage IDs, extractor, extracted_at,
+    scholarly_ref, note, and evidence_records when present. For HOLDS, also return stance;
+    affirms, denies, and modifies are not interchangeable or school-wide consensus.
+  - >-
+    Concept.definition, Practice.description, and Thesis.statement are interpretive
+    summaries, not ancient quotations. Return their review_status, extractor, extracted_at,
+    and description_record when using them. Missing review metadata does not establish
+    scholarly approval. Generated labels and taxonomy edges are provisional too; a
+    Passion label alone does not identify one of the four canonical generic passions.
+  - >-
+    DISCUSSES and INVOLVES are structural links and have no assertion basis. Generated
+    links can carry extractor, extracted_at, and evidence_records. Preserve those fields
+    without inventing basis ancient. DISCUSSES.focus mention establishes an indexing
+    lead, not endorsement of the topic or support for its entire summary.
+  - >-
+    Node source_passages/source_renderings can merge evidence from multiple variants.
+    Do not assume every linked passage supports the representative description.
+    description_record and evidence_records identify external provenance records; they
+    are not quotation text and are not themselves resolvable by this graph query tool.
+    Resolve source IDs to actual renderings and let the answering agent evaluate support.
+  - >-
+    Use UNWIND on an assertion's evidence IDs and indexed Passage.id matches. For evidence
+    retrieval, require an actual rendering; empty evidence produces no quotable row.
+    For an explicit assertion inventory, OPTIONAL MATCH may preserve unsupported claims
+    with null text and an explicit indication that no passage was retrieved.
+  - >-
+    Use bounded paths only when required by the question. Filter every assertion hop by
+    the allowed bases and return provenance for every hop; evidence for a REMEDIES edge
+    does not also validate a traversed SPECIES_OF edge. Do not rank truth by path length,
+    PageRank, mention count, or extraction frequency. Do not collapse conflicting claims
+    or promote the most frequently extracted one to a consensus.
+
 attribution:
   - >-
     AUTHORED.role distinguishes author, recorder, and compiler. REPORTS.mode distinguishes
@@ -77,9 +130,9 @@ attribution:
     Keep missing attribution absent or null. Do not infer an author from familiarity with
     a quotation. Work titles, citations, translations, and names must come from the graph.
   - >-
-    Assertion edges carry basis, evidence (Passage IDs), scholarly_ref, and optional note.
-    Preserve that provenance if explicitly queried. Structural corpus links do not imply
-    assertion provenance. A citation without a retrieved rendering is not quotation text.
+    Preserve assertion and extraction provenance whenever doctrinal links are used, not
+    only when explicitly requested. A citation without a retrieved rendering is not
+    quotation text. Keep interpretation fields separate from the original text field.
 
 result_contract:
   passage_fields:
@@ -96,10 +149,18 @@ result_contract:
     - translator
     - license
   score: Include the actual search score only when a search procedure supplies it.
+  doctrine_context: >-
+    For topic-based retrieval, include the topic's ID, name, interpretation, review status,
+    extraction metadata, and the DISCUSSES link's focus and extraction metadata. A
+    provisional flag means machine-generated or unreviewed, not that the passage is false.
+  assertions: >-
+    For assertion evidence, return a list of maps containing source and target IDs/names,
+    relationship, basis, provisional, stance if present, evidence IDs and available
+    extraction/scholarly provenance. Every returned assertion must cite that row's passage.
   notes: >-
     Keep attribution as distinct lists of maps, not ambiguous parallel name/role lists.
     Missing authorship must not suppress a passage. Entity resolution may return IDs,
-    names, kinds, and scores without text; those rows are not quotable evidence.
+    names, kinds, interpretations, and scores without text; those rows are not quotable evidence.
 
 properties:
   Entity: id is the unique string identifier; name is the display name.
@@ -108,6 +169,12 @@ properties:
     Optional name_original, born, died, floruit, stoa_phase, aliases, bio. Dates are signed
     years; aliases is a string array. School affiliation is a MEMBER_OF relationship.
   Work: Optional title_original, abbreviation, cts_urn, extant, aliases.
+  Concept: term, definition; optional term_original, latin, aliases, object_value, time, note.
+  Practice: description and label_origin; optional term_original, coined_by, aliases, note.
+  Thesis: statement; optional aliases.
+  doctrinal_nodes: >-
+    Generated Concept, Practice, and Thesis nodes may have review_status, extractor,
+    extracted_at, source_passages, source_renderings, evidence_records, description_record.
   Passage: >-
     citation and ref identify a location; optional cts_urn and concordance (string array).
     Text lives on Rendering, not Passage.
@@ -158,17 +225,107 @@ examples:
              node.license AS license, score
       ORDER BY score DESC, passage_id, rendering_id LIMIT $limit
 
-  resolve_author_or_work:
-    purpose: Resolve an unfamiliar name or work title; these rows are not quotations.
+  resolve_entity:
+    purpose: >-
+      Resolve a person, work, concept, practice, or thesis. Choose kinds for the question;
+      names and interpretive summaries are not quotations. Use returned IDs for follow-up.
     parameters:
-      name: Epictetus
+      name: anger
+      kinds: [Concept, Practice, Thesis]
       limit: 3
     cypher: |-
       CALL db.idx.fulltext.queryNodes('Searchable', $name) YIELD node, score
-      WITH node, score WHERE node:Person OR node:Work
+      WITH node, score WHERE any(label IN labels(node) WHERE label IN $kinds)
       RETURN node.id AS id, node.name AS name,
-             [label IN labels(node) WHERE NOT label IN ['Entity', 'Searchable']] AS kinds, score
+             [label IN labels(node) WHERE NOT label IN ['Entity', 'Searchable']] AS kinds,
+             coalesce(node.definition, node.description, node.statement) AS interpretation,
+             node.review_status AS review_status, node.extractor AS extractor,
+             node.extracted_at AS extracted_at, node.description_record AS description_record, score
       ORDER BY score DESC, id LIMIT $limit
+
+  topic_passages:
+    purpose: >-
+      Follow a resolved doctrinal entity to source passages, retaining witnesses and
+      provisional indexing metadata. An interpretation is not the passage's text.
+      This lookup has no relevance score; IDs provide stable ordering within the topic.
+    parameters:
+      topic_id: concept:orge
+      language: en
+      limit: 3
+    cypher: |-
+      MATCH (topic:Entity {id: $topic_id})<-[link:DISCUSSES]-(p:Passage)-[:PART_OF]->(w:Work)
+      MATCH (node:Rendering)-[:RENDERS]->(p)
+      WHERE node.lang = $language
+      WITH topic, link, p, w, node
+      ORDER BY CASE node.extent WHEN 'full' THEN 0 ELSE 1 END, node.id
+      WITH topic, link, p, w, collect(node)[0] AS node
+      ORDER BY p.id LIMIT $limit
+      WITH node, p, w,
+           {topic_id: topic.id, topic_name: topic.name,
+            interpretation: coalesce(topic.definition, topic.description, topic.statement),
+            review_status: topic.review_status, extractor: topic.extractor,
+            extracted_at: topic.extracted_at, description_record: topic.description_record,
+            focus: link.focus, link_extractor: link.extractor,
+            link_extracted_at: link.extracted_at, link_evidence_records: link.evidence_records,
+            provisional: CASE WHEN topic.review_status = 'unreviewed'
+              OR topic.extractor IS NOT NULL OR link.extractor IS NOT NULL THEN true ELSE null END}
+           AS doctrine_context
+      OPTIONAL MATCH (writer:Person)-[auth:AUTHORED]->(w)
+      WITH node, p, w, doctrine_context,
+           collect(DISTINCT CASE WHEN writer IS NULL THEN null
+             ELSE {name: writer.name, role: auth.role} END) AS authorship
+      OPTIONAL MATCH (p)-[report:REPORTS]->(voice)
+      RETURN node.text AS text, p.id AS passage_id, node.id AS rendering_id,
+             p.citation AS citation, w.id AS work_id, w.name AS work_title, authorship,
+             collect(DISTINCT CASE WHEN voice IS NULL THEN null
+               ELSE {name: voice.name, mode: report.mode} END) AS reported_voices,
+             node.lang AS language, node.extent AS extent, node.translator AS translator,
+             node.license AS license, doctrine_context
+      ORDER BY passage_id, rendering_id LIMIT $limit
+
+  assertion_evidence:
+    purpose: >-
+      Retrieve proposed remedies for a resolved passion and the passages cited by each
+      assertion. Adapt relationship_types to the question (for example APPLIES or HOLDS);
+      preserve relationship direction and stance. Explicitly include extracted for
+      exploratory retrieval, never as certified doctrine. This is a direct-neighbor
+      lookup with stable passage ordering, not a semantic ranking.
+    parameters:
+      topic_id: concept:orge
+      relationship_types: [REMEDIES]
+      bases: [ancient, scholarly, editorial, extracted]
+      language: en
+      limit: 3
+    cypher: |-
+      MATCH (topic:Entity {id: $topic_id})-[claim]-(other)
+      WHERE type(claim) IN $relationship_types AND claim.basis IN $bases
+      UNWIND claim.evidence AS pid
+      MATCH (p:Passage {id: pid})-[:PART_OF]->(w:Work)
+      WITH p, w,
+           collect(DISTINCT {source_id: startNode(claim).id, source_name: startNode(claim).name,
+             relationship: type(claim), target_id: endNode(claim).id, target_name: endNode(claim).name,
+             basis: claim.basis, provisional: CASE WHEN claim.basis = 'extracted' THEN true ELSE null END,
+             stance: claim.stance, evidence: claim.evidence, extractor: claim.extractor,
+             extracted_at: claim.extracted_at, evidence_records: claim.evidence_records,
+             scholarly_ref: claim.scholarly_ref, note: claim.note}) AS assertions
+      MATCH (node:Rendering)-[:RENDERS]->(p)
+      WHERE node.lang = $language
+      WITH p, w, assertions, node
+      ORDER BY CASE node.extent WHEN 'full' THEN 0 ELSE 1 END, node.id
+      WITH p, w, assertions, collect(node)[0] AS node
+      ORDER BY p.id LIMIT $limit
+      OPTIONAL MATCH (writer:Person)-[auth:AUTHORED]->(w)
+      WITH node, p, w, assertions,
+           collect(DISTINCT CASE WHEN writer IS NULL THEN null
+             ELSE {name: writer.name, role: auth.role} END) AS authorship
+      OPTIONAL MATCH (p)-[report:REPORTS]->(voice)
+      RETURN node.text AS text, p.id AS passage_id, node.id AS rendering_id,
+             p.citation AS citation, w.id AS work_id, w.name AS work_title, authorship,
+             collect(DISTINCT CASE WHEN voice IS NULL THEN null
+               ELSE {name: voice.name, mode: report.mode} END) AS reported_voices,
+             node.lang AS language, node.extent AS extent, node.translator AS translator,
+             node.license AS license, assertions
+      ORDER BY passage_id, rendering_id LIMIT $limit
 
   passage_by_id:
     purpose: >-
