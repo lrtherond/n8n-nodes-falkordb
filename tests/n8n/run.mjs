@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FalkorDB } from 'falkordb';
@@ -10,6 +10,8 @@ const directory = mkdtempSync(join(tmpdir(), 'falkordb-n8n-smoke-'));
 const queryGraphName = `n8n_query_smoke_${crypto.randomUUID()}`;
 let client;
 try {
+	// mkdtemp uses 0700; the container's node user can differ from the Linux host user.
+	chmodSync(directory, 0o755);
 	client = await FalkorDB.connect({
 		socket: { host: '127.0.0.1', port: 16379, reconnectStrategy: false, connectTimeout: 5000 },
 		password: 'revival-test-only',
