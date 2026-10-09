@@ -1,0 +1,204 @@
+# Local guidance for the Cypher-generating model; keep separate from the graph schema.
+source: /Users/laurent/projects/stoic-kg/schema/schema.yaml
+engine:
+  name: FalkorDB
+  version: 4.20.7
+purpose: >-
+  Retrieve evidence for a conversational Stoic mentor. Answer the specific point in the
+  tool question, not merely its broad topic. Return source text and attribution for the
+  answering agent to evaluate; do not compose the mentor's answer in Cypher.
+inventory:
+  observed_at: '2026-10-09'
+  populated: [Person, School, Work, Passage, Rendering]
+  not_populated: [Concept, Practice, Thesis]
+  guidance: >-
+    These are observations, not permanent schema restrictions. The current corpus supports
+    text retrieval and corpus/provenance traversal. Do not assume doctrine or practice
+    edges contain evidence merely because they are defined in the schema. Empty results
+    are valid. The corpus also contains non-Stoic authors and witnesses.
+
+retrieval_strategy:
+  - >-
+    For practical questions, use the Rendering.text full-text index. Translate the particular
+    claim or situation into a few discriminating terms, allowing older English wording.
+    Use a small group of alternatives such as anger | wrath, not the whole user message
+    or an indiscriminate list of philosophical topics. Parameters protect Cypher values;
+    they do not turn arbitrary full-text syntax into literal text. Generate simple search
+    expressions rather than copying punctuation or operators from the user's message.
+  - >-
+    Default to English renderings (lang = en) and passages reporting a Person connected by
+    MEMBER_OF to School named Stoa, with REPORTS.mode own_words or recorded_teaching.
+    This is a retrieval policy, not proof that every sentence expresses a Stoic doctrine.
+    A passage may discuss or quote an opponent; return the context and attribution.
+  - >-
+    Honor explicit author, work, citation, language, and source-criticism requests. For a
+    named teacher, filter the REPORTS voice, not just AUTHORED: a recorder or compiler may
+    be associated with the work. For an explicit witness or non-Stoic source, relax the
+    default school/mode filters while preserving the requested scope and report modes.
+    Do not silently substitute another author when a targeted search has no results.
+  - >-
+    Use Searchable.name/search_text for resolving people and works, then stable IDs for
+    exact lookup when supplied. Never invent IDs or citations. Apply all requested
+    language, author, work, and exclusion filters before LIMIT.
+  - >-
+    Normally return three candidates, never exceeding the supplied node limit or a smaller
+    requested count. Order full-text results by score descending with stable ID tie-breaks.
+    Scores measure lexical matching, not philosophical relevance or quotation quality;
+    do not fabricate semantic scores. A low score or empty search does not prove that a
+    teaching is absent from the corpus. Reformulating a search is the calling agent's job.
+  - >-
+    Prefer one rendering per passage in the requested language unless translation comparison
+    is requested; prefer extent full when equivalents exist. Aggregate attribution records
+    so relationship fan-out does not duplicate evidence or consume the result limit.
+    Do not merge text from different renderings. If the question supplies already-seen
+    passage IDs, exclude those IDs before ranking/limiting new candidates.
+  - >-
+    Return the entire stored Rendering.text unchanged as context. Do not summarize it,
+    substring it, stitch sentences together, or insert ellipses in Cypher. The answering
+    agent may quote a brief, contiguous, self-contained excerpt of complete sentences;
+    it need not reproduce a whole chapter. Prefer concise evidence when relevance is
+    comparable, but do not discard a relevant long passage solely for its length.
+  - >-
+    Generate one read-only query per call. These workflows provide no query embedding;
+    do not use the catalogue's vector rag-context query, invent vectors, or treat stored
+    document vectors as an embedding of the question. Use full-text search and traversal.
+
+attribution:
+  - >-
+    AUTHORED.role distinguishes author, recorder, and compiler. REPORTS.mode distinguishes
+    own_words, recorded_teaching, verbatim_quote, quoted_in_translation, paraphrase,
+    doxography, and hostile_report. Return names and their roles/modes together.
+  - >-
+    A reported philosopher is not necessarily the author or speaker of every sentence.
+    Doxography, paraphrase, and hostile reports must not become that philosopher's direct
+    quotation. Even verbatim_quote and quoted_in_translation do not identify exact quote
+    boundaries within a rendering; retain the whole context for the answering agent.
+  - >-
+    Keep missing attribution absent or null. Do not infer an author from familiarity with
+    a quotation. Work titles, citations, translations, and names must come from the graph.
+  - >-
+    Assertion edges carry basis, evidence (Passage IDs), scholarly_ref, and optional note.
+    Preserve that provenance if explicitly queried. Structural corpus links do not imply
+    assertion provenance. A citation without a retrieved rendering is not quotation text.
+
+result_contract:
+  passage_fields:
+    - text
+    - passage_id
+    - rendering_id
+    - citation
+    - work_id
+    - work_title
+    - authorship
+    - reported_voices
+    - language
+    - extent
+    - translator
+    - license
+  score: Include the actual search score only when a search procedure supplies it.
+  notes: >-
+    Keep attribution as distinct lists of maps, not ambiguous parallel name/role lists.
+    Missing authorship must not suppress a passage. Entity resolution may return IDs,
+    names, kinds, and scores without text; those rows are not quotable evidence.
+
+properties:
+  Entity: id is the unique string identifier; name is the display name.
+  Searchable: search_text contains prepared names and aliases for full-text resolution.
+  Person: >-
+    Optional name_original, born, died, floruit, stoa_phase, aliases, bio. Dates are signed
+    years; aliases is a string array. School affiliation is a MEMBER_OF relationship.
+  Work: Optional title_original, abbreviation, cts_urn, extant, aliases.
+  Passage: >-
+    citation and ref identify a location; optional cts_urn and concordance (string array).
+    Text lives on Rendering, not Passage.
+  Rendering: >-
+    lang, text, license, extent; optional translator, edition, embedding, embedding_hash,
+    embedding_model. extent full describes the stored rendering, not a requirement to
+    reproduce all its text in a chat reply. Never return embedding arrays.
+
+indexes:
+  fulltext:
+    Searchable: [name, search_text]
+    Rendering: [text]
+  guidance: >-
+    db.idx.fulltext.queryNodes(label, searchText) yields node and score, higher first.
+    Entity.id supports exact indexed lookup. Vector indexes exist but are unavailable
+    for question retrieval without a compatible externally supplied query embedding.
+
+examples:
+  stoic_passages:
+    purpose: >-
+      Default topical retrieval with speaker and work attribution. Add requested filters
+      before the first LIMIT. The text is complete source context, not a mandatory full quote.
+    parameters:
+      term: anger | wrath
+      language: en
+      school: Stoa
+      modes: [own_words, recorded_teaching]
+      limit: 3
+    cypher: |-
+      CALL db.idx.fulltext.queryNodes('Rendering', $term) YIELD node, score
+      MATCH (node)-[:RENDERS]->(p:Passage)-[:PART_OF]->(w:Work)
+      MATCH (p)-[report:REPORTS]->(speaker:Person)-[:MEMBER_OF]->(school:School)
+      WHERE node.lang = $language AND school.name = $school AND report.mode IN $modes
+      WITH DISTINCT node, score, p, w
+      ORDER BY score DESC, CASE node.extent WHEN 'full' THEN 0 ELSE 1 END, node.id
+      WITH p, w, collect(node)[0] AS node, max(score) AS score
+      ORDER BY score DESC, p.id LIMIT $limit
+      OPTIONAL MATCH (writer:Person)-[auth:AUTHORED]->(w)
+      WITH node, score, p, w,
+           collect(DISTINCT CASE WHEN writer IS NULL THEN null
+             ELSE {name: writer.name, role: auth.role} END) AS authorship
+      OPTIONAL MATCH (p)-[report:REPORTS]->(voice)
+      RETURN node.text AS text, p.id AS passage_id, node.id AS rendering_id,
+             p.citation AS citation, w.id AS work_id, w.name AS work_title, authorship,
+             collect(DISTINCT CASE WHEN voice IS NULL THEN null
+               ELSE {name: voice.name, mode: report.mode} END) AS reported_voices,
+             node.lang AS language, node.extent AS extent, node.translator AS translator,
+             node.license AS license, score
+      ORDER BY score DESC, passage_id, rendering_id LIMIT $limit
+
+  resolve_author_or_work:
+    purpose: Resolve an unfamiliar name or work title; these rows are not quotations.
+    parameters:
+      name: Epictetus
+      limit: 3
+    cypher: |-
+      CALL db.idx.fulltext.queryNodes('Searchable', $name) YIELD node, score
+      WITH node, score WHERE node:Person OR node:Work
+      RETURN node.id AS id, node.name AS name,
+             [label IN labels(node) WHERE NOT label IN ['Entity', 'Searchable']] AS kinds, score
+      ORDER BY score DESC, id LIMIT $limit
+
+  passage_by_id:
+    purpose: >-
+      Fetch a known passage using an ID returned by a previous retrieval. This explicit
+      lookup preserves its provenance without imposing the default school or report modes.
+    parameters:
+      passage_id: passage:gs:91
+      language: en
+      limit: 1
+    cypher: |-
+      MATCH (node:Rendering)-[:RENDERS]->(p:Passage {id: $passage_id})-[:PART_OF]->(w:Work)
+      WHERE node.lang = $language
+      WITH node, p, w
+      ORDER BY CASE node.extent WHEN 'full' THEN 0 ELSE 1 END, node.id LIMIT $limit
+      OPTIONAL MATCH (writer:Person)-[auth:AUTHORED]->(w)
+      WITH node, p, w,
+           collect(DISTINCT CASE WHEN writer IS NULL THEN null
+             ELSE {name: writer.name, role: auth.role} END) AS authorship
+      OPTIONAL MATCH (p)-[report:REPORTS]->(voice)
+      RETURN node.text AS text, p.id AS passage_id, node.id AS rendering_id,
+             p.citation AS citation, w.id AS work_id, w.name AS work_title, authorship,
+             collect(DISTINCT CASE WHEN voice IS NULL THEN null
+               ELSE {name: voice.name, mode: report.mode} END) AS reported_voices,
+             node.lang AS language, node.extent AS extent, node.translator AS translator,
+             node.license AS license
+      ORDER BY CASE extent WHEN 'full' THEN 0 ELSE 1 END, rendering_id LIMIT $limit
+
+engine_constraints:
+  - Generate read-only FalkorDB openCypher with parameterized question values.
+  - Use bounded variable-length traversals; avoid graph-wide scans for ordinary text searches.
+  - Do not use APOC, CALL subqueries, or Neo4j-specific search procedures.
+  - Do not alias a returned column with a variable name subsequently used by ORDER BY.
+  - Keep LIMIT at or below the supplied node limit; do not invent results for empty queries.
