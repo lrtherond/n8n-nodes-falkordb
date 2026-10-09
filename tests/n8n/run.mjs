@@ -37,6 +37,7 @@ try {
 	assert.deepEqual(
 		packed.files.map(({ path }) => path).sort(),
 		[
+			'LICENSE',
 			'README.md',
 			'package.json',
 			'dist/nodes/FalkorDb/graph-query.png',

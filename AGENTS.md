@@ -95,7 +95,7 @@ This is an independent community project, not affiliated with, endorsed by, or a
 
 ### Current Development Baseline
 
-The package, `@lrtherond/n8n-nodes-falkordb`, registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes.
+The stable 2.0.0 release of `@lrtherond/n8n-nodes-falkordb` registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes. Stable npm publication uses the `latest` tag and remains separate from committing, pushing, and CI.
 
 - `FalkorDbQuery` defines the n8n UI and wiring, including the credential connection test.
 - `FalkorDbQueryEngine` sends the supplied schema, retrieval guidance, question, and limit to the connected Chat Model. It validates generated Cypher and parameters before read-only execution.
@@ -128,7 +128,7 @@ Keep `README.md` focused on people installing and using the integration. Local d
 | `.github/workflows/ci.yml`               | Continuous integration checks                                              |
 | `dev/README.md`                          | Contributor setup, testing, dependency rationale, and local validation     |
 
-`dist/` is generated build output and `node_modules/` contains installed dependencies. Keep both out of version control. The package's `n8n` manifest registers the query node and credential. Restrict published files to `dist/nodes` and `dist/credentials`; the packaged smoke test checks the exact archive contents. Documentation metadata currently lives in the node description's `codex` field.
+`dist/` is generated build output and `node_modules/` contains installed dependencies. Keep both out of version control. The package's `n8n` manifest registers the query node and credential. Restrict the published implementation to `dist/nodes` and `dist/credentials`, alongside the manifest, README, and MIT license; the packaged smoke test checks the exact archive contents. Documentation metadata currently lives in the node description's `codex` field.
 
 `compose.dev.yaml` and `dev/n8n/` provide the persistent interactive n8n instance at `http://localhost:5678`. It joins the existing `stoic-kg_default` Docker network and uses `stoic-kg-falkordb:6379` for graph `stoa`. `npm run dev:docker` rebuilds/reinstalls the package and recreates n8n while preserving its volume. Local schema snapshots and workflow exports belong in git-ignored `.n8n/`; database passwords and model API keys belong in n8n's encrypted credential store. Keep this development instance running when requested for interactive use. The cleanup requirement below applies to the separate disposable test services.
 

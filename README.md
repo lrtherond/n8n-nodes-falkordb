@@ -1,12 +1,26 @@
 # n8n-nodes-falkordb
 
-Development version 2 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
+Version 2.0.0 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
 
-This is an independent community project. It is not affiliated with, endorsed by, or authorized by the makers of FalkorDB. The database name identifies compatibility; the nodes use original artwork.
+This is an independent community project. It is not affiliated with, endorsed by, or authorized by the makers of FalkorDB. The database name identifies compatibility; the node uses original artwork.
 
 **FalkorDB Graph Query** takes your graph schema and a natural-language question, asks a connected Chat Model to generate Cypher, and submits it to FalkorDB for read-only execution. It supports arbitrary graph schemas; labels, properties, relationships, and retrieval strategies come from your inputs.
 
 Version 2 is a complete replacement for the published 1.x package. It provides the new schema-driven query, retriever, and agent-tool modes. The previous conversation-memory and graph-enrichment node is not included; workflows using that node must be rebuilt. There is no legacy compatibility layer or automatic migration.
+
+## Installation and upgrades
+
+On a compatible self-hosted n8n instance, sign in as an owner or administrator:
+
+1. Open **Settings → Community Nodes → Install**.
+2. Enter `@lrtherond/n8n-nodes-falkordb@2.0.0` to install this release explicitly.
+3. Review the installation confirmation and select **Install**.
+
+The package installs **one node type, FalkorDB Graph Query, with three modes**: Query, Retriever for Chain, and Tool for AI Agent. Seeing “1 node” in the package list is expected. Add separate instances to your workflows and choose the mode each instance needs.
+
+Stable releases use npm's `latest` tag. Entering `@lrtherond/n8n-nodes-falkordb` without a version installs that release channel. See [n8n's community-node installation and update instructions](https://docs.n8n.io/integrations/community-nodes/installation-and-management/gui-installation/).
+
+Workflows created with `2.0.0-dev.0` use the same node type, parameters, and connections as 2.0.0. The breaking change from 1.x described above still applies to older workflows.
 
 ## Query an existing graph
 
@@ -70,11 +84,9 @@ Generated JSON and parameter names are validated before execution. All FalkorDB 
 
 Credentials support an optional ACL username/password and TLS with certificate verification. FalkorDB Graph Query needs `INFO` and `GRAPH.RO_QUERY`; the credential test additionally calls `GRAPH.LIST`. Use a database account appropriate to the graphs the workflow should access.
 
-## Compatibility and availability
+## Compatibility
 
-Version 2 is a development version (`2.0.0-dev.0`), not a production release. These instructions describe the code in this repository. For installation from source and local testing, see the [development guide](dev/README.md).
-
-FalkorDB server integration is tested against releases 6.0.2 and 4.20.7, with isolated test graphs. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
+Version 2.0.0 is tested with n8n 2.42.6. FalkorDB server integration is tested against releases 6.0.2 and 4.20.7, with isolated test graphs. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
 
 This package targets self-hosted n8n. n8n Cloud support is not established. Node.js 24 or newer is required.
 
@@ -85,4 +97,4 @@ This package targets self-hosted n8n. n8n Cloud support is not established. Node
 
 ## License
 
-MIT
+Licensed under the [MIT License](LICENSE).

@@ -93,16 +93,40 @@ Prefer the latest stable dependency release, then verify it against n8n. Version
 | n8n workflow API      | 2.42.3  | Exact API dependency of stable n8n 2.42.6; npm's `latest` tag points to older 2.16.0 |
 | Node type definitions | 24.19.1 | Latest stable on the supported Node 24 runtime line                                  |
 
+The release audit on 2026-10-09 reported zero findings with `npm audit --omit=dev`. The full `npm audit` reported 24 findings (3 low, 6 moderate, 14 high, and 1 critical), all on entries marked as development dependencies in the lockfile. The critical finding affects Handlebars 4.7.9, pinned by `@n8n/node-cli` for template generation; npm reports no available fix through that CLI version. These development-dependency findings remain unresolved. The omitted tree also includes the development copy of the `n8n-workflow` peer dependency, so the zero-finding result does not assess the host n8n installation's dependencies.
+
 ## Artwork
 
 The original [node icon](../nodes/FalkorDb/graph-query.png) was generated with OpenAI's built-in image-generation tool. The [generation prompt](../nodes/FalkorDb/graph-query.prompt.txt) records the design brief and exclusions. No FalkorDB logo or vendor artwork is used.
 
-## Package checks
+## Release checks and publication
+
+Version `2.0.0` is the first stable release of the replacement package. It registers one node with Query, Retriever for Chain, and Tool for AI Agent modes. Existing 1.x memory workflows require rebuilding; workflows using the `2.0.0-dev.0` query node retain their configuration.
+
+Validate the release from a clean checkout with Node.js 24 and Docker:
 
 ```sh
+npm ci
 npm run check
-npm run test:integration
+(
+  set -e
+  trap 'docker compose -f compose.test.yaml down' EXIT
+  docker compose -f compose.test.yaml up -d --wait
+  npm run test:integration
+  npm run test:n8n
+)
 npm pack --dry-run
+npm publish --access public --tag latest --dry-run
 ```
 
-The package is marked `2.0.0-dev.0` and is not production-ready. Only the compiled query implementation, credential, and original icon are distributed, alongside the package manifest and README. The smoke test checks the archive file list to prevent retired nodes or development artifacts from returning. Publishing is a separate release step.
+Only the compiled query implementation, credential, and original icon are distributed, alongside the package manifest, README, and MIT license. The smoke test checks the exact archive file list to prevent retired nodes or development artifacts from returning. The publication preview runs `prepublishOnly`, including the full coverage gate, without uploading a package.
+
+After the release commit is pushed and both GitHub CI jobs pass, publish separately from the repository root:
+
+```sh
+npm login --registry=https://registry.npmjs.org/
+npm publish --access public --tag latest
+npm view @lrtherond/n8n-nodes-falkordb@latest version
+```
+
+`publishConfig` sets the public npm registry, public access, and the `latest` tag. Publishing 2.0.0 moves `latest` from the old 1.x implementation to the replacement package. Installing a prerelease through `next` does not make n8n's subsequent updates follow that tag; keep stable releases on `latest`. Every later publication requires a new package version. Committing, pushing, and running CI do not publish to npm.
