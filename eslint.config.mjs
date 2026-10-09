@@ -1,7 +1,9 @@
 import { configWithoutCloudSupport } from '@n8n/node-cli/eslint';
+import { globalIgnores } from 'eslint/config';
 
 export default [
 	...configWithoutCloudSupport,
+	globalIgnores(['coverage/**']),
 	{
 		files: ['**/*.ts'],
 		rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
