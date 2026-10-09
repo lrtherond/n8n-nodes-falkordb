@@ -21,6 +21,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: Configure Docker Hub mirror
+        run: |
+          sudo python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('/etc/docker/daemon.json')
+          config = json.loads(path.read_text()) if path.exists() else {}
+          config['registry-mirrors'] = ['https://mirror.gcr.io']
+          path.write_text(json.dumps(config))
+          PY
+          sudo systemctl restart docker
       - run: docker compose -f compose.test.yaml up -d --wait
       - run: npm run test:integration
       - if: matrix.node == 24

@@ -30,6 +30,8 @@ docker compose -f compose.test.yaml down
 
 Tests use unique graph names and delete only their own graphs. Override `FALKORDB_HOST`, `FALKORDB_PORT`, and `FALKORDB_PASSWORD` to use another test database. Defaults are `127.0.0.1:16379` and password `revival-test-only`.
 
+The FalkorDB test image is pinned to the 6.0.2 multi-platform digest. GitHub CI configures Docker to use [Google's public Docker Hub cache](https://docs.cloud.google.com/artifact-registry/docs/pull-cached-dockerhub-images) to avoid anonymous Docker Hub pull limits, with Docker Hub as the fallback if the image is not cached. Update both the version and digest when changing the test image.
+
 Tests cover separate schema, retrieval guidance, and question forwarding, arbitrary graph traversal, full-text ranking, citations, empty results, server-enforced rejection of generated writes, parameter validation, all three query interfaces, credential testing, and connection cleanup. AI responses are deterministic fixtures; no paid model account is required. These tests validate integration behavior, not real-provider Cypher generation quality.
 
 `test:n8n` installs the packed package into an isolated stable n8n 2.42.6 container. It verifies the exact package contents, separate schema and retrieval guidance expressions, and a Question and Answer Chain retrieving different evidence from the main query with a visible retriever execution trace. It also checks the agent's required question schema and two successive tool calls retrieving different results with citations.
