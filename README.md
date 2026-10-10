@@ -1,6 +1,6 @@
 # n8n-nodes-falkordb
 
-Version 2.0.0 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
+Version 2.1.0 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
 
 This is an independent community project. It is not affiliated with, endorsed by, or authorized by the makers of FalkorDB. The database name identifies compatibility; the node uses original artwork.
 
@@ -13,14 +13,14 @@ Version 2 is a complete replacement for the published 1.x package. It provides t
 On a compatible self-hosted n8n instance, sign in as an owner or administrator:
 
 1. Open **Settings → Community Nodes → Install**.
-2. Enter `@lrtherond/n8n-nodes-falkordb@2.0.0` to install this release explicitly.
+2. Enter `@lrtherond/n8n-nodes-falkordb@2.1.0` to install this release explicitly.
 3. Review the installation confirmation and select **Install**.
 
 The package installs **one node type, FalkorDB Graph Query, with three modes**: Query, Retriever for Chain, and Tool for AI Agent. Seeing “1 node” in the package list is expected. Add separate instances to your workflows and choose the mode each instance needs.
 
 Stable releases use npm's `latest` tag. Entering `@lrtherond/n8n-nodes-falkordb` without a version installs that release channel. See [n8n's community-node installation and update instructions](https://docs.n8n.io/integrations/community-nodes/installation-and-management/gui-installation/).
 
-Workflows created with `2.0.0-dev.0` use the same node type, parameters, and connections as 2.0.0. The breaking change from 1.x described above still applies to older workflows.
+Workflows created with `2.0.0-dev.0` or `2.0.0` retain their configuration in 2.1.0. Existing tool workflows default the new **Question** field to **From AI**. The breaking change from 1.x described above still applies to older workflows.
 
 ## Query an existing graph
 
@@ -76,7 +76,9 @@ Tool mode gives the agent the same structure as JSON, wrapped in n8n's output-it
 
 For complete quotations, tell the answering chain or agent to quote each selected passage's entire returned text verbatim, preserving words, punctuation, and paragraphs. Require source citations and prohibit summaries or inserted ellipses. This instruction belongs in the chain's system prompt or agent's system message; **Retrieval Guidance** controls query generation. Verify quotations against the retrieved rows, since model-generated answers can still alter text. Query mode returns the database rows directly.
 
-Each retriever invocation records its question, generated Cypher, parameters, and returned rows in n8n's execution log. Retrieval failures are recorded on the retriever node and propagated to the chain. The agent tool exposes a required `question` argument so the agent can make successive searches with different questions.
+Each retriever or tool invocation records its input, generated Cypher, parameters, and returned rows in n8n's execution log. Failures are recorded on the node and propagated to the calling chain or agent.
+
+In Tool for AI Agent mode, **Question** defaults to **From AI**: the agent supplies a `question` argument on each call and can reformulate your request or make successive searches. Switch the field to a fixed value or an expression referencing a previous node to control the question yourself. Other query settings also support From AI. The tool's argument schema follows the parameters marked From AI; fixed values and ordinary expressions are resolved by n8n. Existing tool workflows continue to receive their question from the agent.
 
 Generated JSON and parameter names are validated before execution. All FalkorDB Graph Query database queries use `GRAPH.RO_QUERY`, including the initial access check; no graph or index is created. FalkorDB enforces the read-only boundary. Invalid model output, unsupported Cypher, missing graphs, timeouts, and model-reported unanswerable questions fail with an error. Query mode honors n8n's continue-on-fail setting.
 
@@ -86,7 +88,7 @@ Credentials support an optional ACL username/password and TLS with certificate v
 
 ## Compatibility
 
-Version 2.0.0 is tested with n8n 2.42.6. FalkorDB server integration is tested against releases 6.0.2 and 4.20.7, with isolated test graphs. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
+Version 2.1.0 is tested with n8n 2.42.6 and FalkorDB server 6.0.2, with isolated test graphs. Earlier 2.0.0 validation also covered FalkorDB server 4.20.7. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
 
 This package targets self-hosted n8n. n8n Cloud support is not established. Node.js 24 or newer is required.
 

@@ -25,10 +25,14 @@ try {
 	for (const file of ['FixtureChatModel.node.cjs', 'credentials.json', 'run.sh']) {
 		cpSync(new URL(file, import.meta.url), join(directory, file));
 	}
-	writeFileSync(
-		join(directory, 'query-workflow.json'),
-		JSON.stringify(queryWorkflow(queryGraphName)),
-	);
+	for (const agentVersion of [2.2, 3]) {
+		for (const questionMode of ['default', 'from-ai', 'fixed', 'expression']) {
+			writeFileSync(
+				join(directory, `query-workflow-${agentVersion}-${questionMode}.json`),
+				JSON.stringify(queryWorkflow(queryGraphName, agentVersion, questionMode)),
+			);
+		}
+	}
 	const [packed] = JSON.parse(
 		execFileSync('npm', ['pack', '--json', '--pack-destination', directory], { encoding: 'utf8' }),
 	);
@@ -60,33 +64,67 @@ try {
 			stdio: ['ignore', 'pipe', 'pipe'],
 		},
 	);
-	const result = JSON.parse(
+	const { executions } = JSON.parse(
 		output.slice(output.lastIndexOf('\n{\n'), output.lastIndexOf('\n}') + 2),
 	);
-	assert.equal(result.status, 'success');
-	const runs = result.data.resultData.runData;
-	assert.deepEqual(runs['FalkorDB Graph Query'][0].data.main[0][0].json.rows, [
-		{ text: 'Apollo', citation: 'P1' },
-	]);
-	assert.equal(runs['QA Chain'][0].data.main[0][0].json.response, 'chain used Zephyr (P2)');
-	const retrieval = runs['FalkorDB Graph Retriever'][0];
-	assert.equal(
-		retrieval.inputOverride.ai_retriever[0][0].json.query,
-		'CHAIN_QUESTION: Find projects for Bob',
-	);
-	assert.deepEqual(retrieval.data.ai_retriever[0][0].json.rows, [
-		{ text: 'Zephyr', citation: 'P2' },
-	]);
-	assert.equal(
-		result.data.resultData.metadata.response_graph_agent,
-		'agent used Apollo (P1) and Zephyr (P2)',
-	);
-	assert.deepEqual(
-		runs['FalkorDB Project Search'].map((run) => run.data.ai_tool[0][0].json.parameters.name),
-		['Alice', 'Bob'],
-	);
+	for (const { version, questionMode, result } of executions) {
+		const fromAI = questionMode === 'default' || questionMode === 'from-ai';
+		assert.equal(result.status, 'success');
+		const runs = result.data.resultData.runData;
+		assert.deepEqual(runs['FalkorDB Graph Query'][0].data.main[0][0].json.rows, [
+			{ text: 'Apollo', citation: 'P1' },
+		]);
+		assert.equal(runs['QA Chain'][0].data.main[0][0].json.response, 'chain used Zephyr (P2)');
+		const retrieval = runs['FalkorDB Graph Retriever'][0];
+		assert.equal(
+			retrieval.inputOverride.ai_retriever[0][0].json.query,
+			'CHAIN_QUESTION: Find projects for Bob',
+		);
+		assert.deepEqual(retrieval.data.ai_retriever[0][0].json.rows, [
+			{ text: 'Zephyr', citation: 'P2' },
+		]);
+		assert.equal(
+			version === 3
+				? result.data.resultData.metadata.response_graph_agent
+				: runs['Graph Agent'][0].data.main[0][0].json.output,
+			fromAI ? 'agent used Apollo (P1) and Zephyr (P2)' : 'agent used Apollo (P1)',
+		);
+		const toolRuns = runs['FalkorDB Project Search'];
+		assert.ok(toolRuns, `Agent ${version} must record its tool calls in n8n`);
+		assert.deepEqual(
+			toolRuns.map((run) => run.executionStatus),
+			fromAI ? ['success', 'success'] : ['success'],
+		);
+		assert.deepEqual(
+			toolRuns.map((run) => run.inputOverride.ai_tool[0][0].json),
+			questionMode === 'default'
+				? [{ question: 'Find projects for Alice' }, { question: 'Find projects for Bob' }]
+				: questionMode === 'from-ai'
+					? [
+							{ search: 'Find projects for Alice', resultLimit: 2 },
+							{ search: 'Find projects for Bob', resultLimit: 2 },
+						]
+					: [{}],
+		);
+		assert.deepEqual(
+			toolRuns.map((run) => run.data.ai_tool[0][0].json.parameters.name),
+			fromAI ? ['Alice', 'Bob'] : ['Alice'],
+		);
+		assert.deepEqual(
+			toolRuns.map((run) => run.data.ai_tool[0][0].json.rows),
+			fromAI
+				? [[{ text: 'Apollo', citation: 'P1' }], [{ text: 'Zephyr', citation: 'P2' }]]
+				: [[{ text: 'Apollo', citation: 'P1' }]],
+		);
+		assert.ok(
+			toolRuns.every(
+				(run) =>
+					run.data.ai_tool[0][0].json.parameters.limit === (questionMode === 'from-ai' ? 2 : 10),
+			),
+		);
+	}
 	console.log(
-		'n8n 2.42.6: package contents, workflow query, QA retriever, agent tool call, and schema and retrieval guidance expressions passed.',
+		'n8n 2.42.6: package contents, workflow query, QA retriever, Agent 2.2 and 3 tool results and execution records, and schema and retrieval guidance expressions passed.',
 	);
 } catch (error) {
 	if (error.stdout) process.stderr.write(error.stdout);

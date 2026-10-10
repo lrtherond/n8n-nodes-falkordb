@@ -31,7 +31,7 @@ function fixture(items: Record<string, unknown>[] = [{}]) {
 	};
 	const context = {
 		getNodeParameter: vi.fn(
-			(name: string, itemIndex: number) =>
+			(name: string, itemIndex: number, fallbackValue?: unknown) =>
 				({
 					mode: 'query',
 					graphName: 'projects',
@@ -41,7 +41,7 @@ function fixture(items: Record<string, unknown>[] = [{}]) {
 					timeout: 10000,
 					toolDescription: 'Find company projects',
 					...items[itemIndex],
-				})[name],
+				})[name] ?? fallbackValue,
 		),
 		getInputData: () => items.map(() => ({ json: {} })),
 		getInputConnectionData: vi.fn().mockResolvedValue(model),
@@ -51,10 +51,16 @@ function fixture(items: Record<string, unknown>[] = [{}]) {
 			name: 'Project Search',
 			type: 'falkorDbQuery',
 			typeVersion: 1,
+			parameters: items[0],
 		}),
 		continueOnFail: vi.fn().mockReturnValue(false),
 		addInputData: vi.fn().mockReturnValue({ index: 7 }),
 		addOutputData: vi.fn(),
+		getNextRunIndex: vi.fn().mockReturnValue(7),
+		cloneWith: vi.fn(({ inputData }: { runIndex: number; inputData: unknown }) => {
+			context.addInputData('ai_tool', inputData);
+			return context;
+		}),
 	};
 	return {
 		context,
@@ -69,6 +75,20 @@ function fixture(items: Record<string, unknown>[] = [{}]) {
 beforeEach(() => vi.clearAllMocks());
 
 describe('Graph Query n8n node', () => {
+	it('exposes a tool Question field that defaults to From AI', () => {
+		const property = new FalkorDbQuery().description.properties.find(
+			(p) => p.name === 'toolQuestion',
+		);
+		expect(property).toMatchObject({
+			displayName: 'Question',
+			type: 'string',
+			required: true,
+			displayOptions: { show: { mode: ['tool'] } },
+		});
+		expect(property?.default).toContain("$fromAI('question'");
+		expect(property?.default).toContain('/*n8n-auto-generated-fromAI-override*/');
+		expect(property?.noDataExpression).not.toBe(true);
+	});
 	it('requires an expression-capable schema with no built-in domain', () => {
 		const description = new FalkorDbQuery().description;
 		expect(description.displayName).toBe('FalkorDB Graph Query');
@@ -202,7 +222,7 @@ describe('Graph Query n8n node', () => {
 		);
 	});
 
-	it('supplies an invokable agent tool and cleanup function', async () => {
+	it('returns agent tool results and records the same output in n8n', async () => {
 		const { supplyContext, model, client, context } = fixture([
 			{ mode: 'tool', retrievalGuidance: 'Return project citations.' },
 			{ retrievalGuidance: 'This second item must not be used.' },
@@ -213,10 +233,15 @@ describe('Graph Query n8n node', () => {
 		expect(tool.schema).toMatchObject({
 			type: 'object',
 			required: ['question'],
-			properties: { question: { type: 'string', minLength: 1 } },
+			properties: { question: { type: 'string' } },
 		});
+		expect(context.addInputData).not.toHaveBeenCalled();
 		const result = JSON.parse(await tool.invoke({ question: 'Who works on Apollo?' }));
 		expect(result.rows[0].citation).toBe('P1');
+		expect(context.addInputData).toHaveBeenCalledWith('ai_tool', [
+			[{ json: { question: 'Who works on Apollo?' } }],
+		]);
+		expect(context.addOutputData).toHaveBeenCalledWith('ai_tool', 7, [[{ json: result }]]);
 		expect(JSON.parse(model.invoke.mock.calls[0][0][1].text).question).toBe('Who works on Apollo?');
 		expect(JSON.parse(model.invoke.mock.calls[0][0][1].text).retrievalGuidance).toBe(
 			'Return project citations.',
@@ -225,6 +250,120 @@ describe('Graph Query n8n node', () => {
 		await supplied.closeFunction?.();
 		expect(client.close).toHaveBeenCalledTimes(1);
 	});
+
+	it('records successive tool calls and returns empty results to the agent', async () => {
+		const { supplyContext, context, graph } = fixture([{ mode: 'tool' }]);
+		context.getNextRunIndex.mockReturnValue(2);
+		const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+		const tool = supplied.response as DynamicStructuredTool;
+		await tool.invoke({ question: 'Find projects' });
+		graph.roQuery.mockResolvedValue({ data: [] });
+		const result = JSON.parse(await tool.invoke({ question: 'Find missing projects' }));
+		expect(result.rows).toEqual([]);
+		expect(context.addOutputData.mock.calls.map(([type, index]) => [type, index])).toEqual([
+			['ai_tool', 2],
+			['ai_tool', 3],
+		]);
+		expect(context.addOutputData.mock.calls[1][2]).toEqual([[{ json: result }]]);
+		await supplied.closeFunction?.();
+	});
+
+	it.each(['Find projects for Bob', "={{ $('Inputs').first().json.question }}"])(
+		'uses a configured question without asking the agent for an argument: %s',
+		async (toolQuestion) => {
+			const { supplyContext, context, model } = fixture([{ mode: 'tool', toolQuestion }]);
+			const getParameter = context.getNodeParameter.getMockImplementation()!;
+			context.getNodeParameter.mockImplementation((name, index, fallback) =>
+				name === 'toolQuestion' ? 'Find projects for Bob' : getParameter(name, index, fallback),
+			);
+			const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+			const tool = supplied.response as DynamicStructuredTool;
+			expect(tool.schema).toMatchObject({ type: 'object', properties: {} });
+			await tool.invoke({});
+			expect(JSON.parse(model.invoke.mock.calls[0][0][1].text).question).toBe(
+				'Find projects for Bob',
+			);
+		},
+	);
+
+	it('derives named and typed tool arguments from configured From AI expressions', async () => {
+		const { supplyContext, model } = fixture([
+			{
+				mode: 'tool',
+				toolQuestion: "={{ $fromAI('search', 'Graph question', 'string') }}",
+				limit: "={{ $fromAI('resultLimit', 'Maximum results', 'number') }}",
+			},
+		]);
+		const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+		const tool = supplied.response as DynamicStructuredTool;
+		expect(tool.schema).toMatchObject({
+			type: 'object',
+			properties: {
+				search: { type: 'string', description: 'Graph question' },
+				resultLimit: { type: 'number', description: 'Maximum results' },
+			},
+		});
+		await expect(tool.invoke({ search: 'Find projects', resultLimit: 'many' })).rejects.toThrow();
+		expect(model.invoke).not.toHaveBeenCalled();
+	});
+
+	it('allows repeated From AI keys with identical definitions', async () => {
+		const { supplyContext } = fixture([
+			{ mode: 'tool', toolQuestion: "={{ $fromAI('search') + ' ' + $fromAI('search') }}" },
+		]);
+		const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+		expect((supplied.response as DynamicStructuredTool).schema).toMatchObject({
+			required: ['search'],
+		});
+	});
+
+	it.each([
+		"={{ $fromAI('') }}",
+		"={{ $fromAI('invalid key') }}",
+		"={{ $fromAI('__proto__') }}",
+		"={{ $fromAI('search', 'One') + $fromAI('search', 'Two') }}",
+	])('rejects invalid or conflicting From AI definitions: %s', async (toolQuestion) => {
+		const { supplyContext } = fixture([{ mode: 'tool', toolQuestion }]);
+		await expect(new FalkorDbQuery().supplyData.call(supplyContext)).rejects.toThrow();
+		expect(connectFalkorDb).not.toHaveBeenCalled();
+	});
+
+	it('records tool initialization failures and closes the connection', async () => {
+		const { supplyContext, context, graph, client } = fixture([{ mode: 'tool' }]);
+		const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+		graph.roQuery.mockRejectedValueOnce(new Error('Access denied'));
+		await expect(
+			(supplied.response as DynamicStructuredTool).invoke({ question: 'Find projects' }),
+		).rejects.toThrow('Access denied');
+		expect(context.addOutputData).toHaveBeenCalledWith(
+			'ai_tool',
+			7,
+			expect.objectContaining({ message: 'Access denied' }),
+		);
+		expect(client.close).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([new Error('Query timed out'), 'Query timed out'])(
+		'records tool failures and propagates them to the agent: %s',
+		async (error) => {
+			const { supplyContext, context, graph, client } = fixture([{ mode: 'tool' }]);
+			const supplied = await new FalkorDbQuery().supplyData.call(supplyContext);
+			graph.roQuery.mockResolvedValueOnce({ data: [] }).mockRejectedValueOnce(error);
+			await expect(
+				(supplied.response as DynamicStructuredTool).invoke({ question: 'Find projects' }),
+			).rejects.toThrow('Query timed out');
+			expect(context.addOutputData).toHaveBeenCalledWith(
+				'ai_tool',
+				7,
+				expect.objectContaining({
+					message: 'Query timed out',
+					functionality: 'configuration-node',
+				}),
+			);
+			await supplied.closeFunction?.();
+			expect(client.close).toHaveBeenCalledTimes(1);
+		},
+	);
 
 	it('accepts agent tool arguments through n8n engine execution', async () => {
 		const { executeContext, context, model, client } = fixture([

@@ -1,7 +1,7 @@
 export const schema =
 	'(Employee {name: STRING})-[:WORKS_ON]->(Project {title: STRING, citation: STRING})';
 
-export function queryWorkflow(graphName) {
+export function queryWorkflow(graphName, agentVersion, questionMode) {
 	const node = (name, type, typeVersion, parameters) => ({
 		id: name,
 		name,
@@ -20,12 +20,24 @@ export function queryWorkflow(graphName) {
 			toolDescription: 'Find employee projects with their citations',
 			limit: 10,
 			timeout: 10000,
+			...(mode === 'tool' && questionMode === 'from-ai'
+				? {
+						toolQuestion: "={{ $fromAI('search', 'Question about projects', 'string') }}",
+						limit: "={{ $fromAI('resultLimit', 'Maximum results', 'number') }}",
+					}
+				: {}),
+			...(mode === 'tool' && questionMode === 'fixed'
+				? { toolQuestion: 'Find projects for Alice' }
+				: {}),
+			...(mode === 'tool' && questionMode === 'expression'
+				? { toolQuestion: "={{ $('Inputs').first().json.question }}" }
+				: {}),
 		}),
 		credentials: { falkorDbApi: { id: 'falkordb-smoke-credential', name: 'Smoke FalkorDB' } },
 	});
 	const connection = (name, type) => ({ node: name, type, index: 0 });
 	return {
-		id: 'graph-query-smoke-workflow',
+		id: `graph-query-smoke-workflow-${agentVersion}-${questionMode}`,
 		name: 'Graph Query Smoke Test',
 		active: false,
 		settings: { executionOrder: 'v1' },
@@ -54,10 +66,10 @@ export function queryWorkflow(graphName) {
 				text: 'CHAIN_QUESTION: Find projects for Bob',
 				options: {},
 			}),
-			node('Graph Agent', '@n8n/n8n-nodes-langchain.agent', 3, {
+			node('Graph Agent', '@n8n/n8n-nodes-langchain.agent', agentVersion, {
 				promptType: 'define',
 				text: 'AGENT_QUESTION: Find projects for Alice and Bob',
-				options: {},
+				options: { enableStreaming: false },
 			}),
 			node('Model', 'CUSTOM.fixtureChatModel', 1, {}),
 		],

@@ -1,7 +1,10 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import { toJsonSchema } from '@langchain/core/utils/json_schema';
 import type {
+	FromAIArgument,
 	ICredentialTestFunction,
+	IDataObject,
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
@@ -9,10 +12,19 @@ import type {
 	ISupplyDataFunctions,
 	SupplyData,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError, nodeNameToToolName } from 'n8n-workflow';
+import {
+	FROM_AI_AUTO_GENERATED_MARKER,
+	NodeConnectionTypes,
+	NodeOperationError,
+	generateZodSchema,
+	nodeNameToToolName,
+	traverseNodeParameters,
+} from 'n8n-workflow';
 import { z } from 'zod';
 import { connectFalkorDb } from './FalkorDbClient';
 import { FalkorDbQueryEngine, FalkorDbRetriever } from './FalkorDbQuery';
+
+const defaultToolQuestion = `={{ ${FROM_AI_AUTO_GENERATED_MARKER} $fromAI('question', 'Natural-language question about the graph', 'string') }}`;
 
 const falkorDbConnectionTest: ICredentialTestFunction = async function (credentials) {
 	try {
@@ -153,6 +165,17 @@ export class FalkorDbQuery implements INodeType {
 				description: 'Natural-language question to answer using the supplied graph schema',
 			},
 			{
+				displayName: 'Question',
+				name: 'toolQuestion',
+				type: 'string',
+				required: true,
+				default: defaultToolQuestion,
+				typeOptions: { rows: 3 },
+				displayOptions: { show: { mode: ['tool'] } },
+				description:
+					'Question to ask the graph. Let the agent supply it with From AI, or use a fixed value or expression.',
+			},
+			{
 				displayName: 'Tool Description',
 				name: 'toolDescription',
 				type: 'string',
@@ -195,7 +218,9 @@ export class FalkorDbQuery implements INodeType {
 					.trim()
 					.min(1, 'Question is required')
 					.parse(
-						isTool ? items[itemIndex].json.question : this.getNodeParameter('question', itemIndex),
+						isTool
+							? this.getNodeParameter('toolQuestion', itemIndex, items[itemIndex].json.question)
+							: this.getNodeParameter('question', itemIndex),
 					);
 				const { engine, close } = await createEngine(this, isTool ? 0 : itemIndex);
 				try {
@@ -233,66 +258,116 @@ export class FalkorDbQuery implements INodeType {
 					this.getNode(),
 					'Choose Retriever for Chain or Tool for AI Agent mode',
 				);
-			const description =
-				mode === 'tool'
-					? z
-							.string()
-							.trim()
-							.min(1, 'Tool Description is required')
-							.parse(this.getNodeParameter('toolDescription', 0))
-					: '';
+			if (mode === 'tool') {
+				const description = z
+					.string()
+					.trim()
+					.min(1, 'Tool Description is required')
+					.parse(this.getNodeParameter('toolDescription', 0));
+				const parameters = this.getNode().parameters;
+				const argumentsFromAI: FromAIArgument[] = [];
+				traverseNodeParameters(
+					{
+						...Object.fromEntries(
+							['graphName', 'schema', 'retrievalGuidance', 'limit', 'timeout'].map((name) => [
+								name,
+								parameters[name],
+							]),
+						),
+						toolQuestion: parameters.toolQuestion ?? defaultToolQuestion,
+					},
+					argumentsFromAI,
+				);
+				const argumentsByKey = new Map<string, FromAIArgument>();
+				for (const argument of argumentsFromAI) {
+					z.string()
+						.regex(/^[a-zA-Z0-9_-]{1,64}$/, 'Invalid From AI parameter key')
+						.refine((key) => !['__proto__', 'constructor', 'prototype'].includes(key))
+						.parse(argument.key);
+					const previous = argumentsByKey.get(argument.key);
+					if (previous && JSON.stringify(previous) !== JSON.stringify(argument))
+						throw new NodeOperationError(
+							this.getNode(),
+							`From AI parameter '${argument.key}' has conflicting definitions`,
+						);
+					argumentsByKey.set(argument.key, argument);
+				}
+				const inputSchema = z
+					.object(
+						Object.fromEntries(
+							[...argumentsByKey].map(([key, argument]) => [key, generateZodSchema(argument)]),
+						),
+					)
+					.strict()
+					.required();
+				let runIndex = this.getNextRunIndex();
+				return {
+					response: new DynamicStructuredTool({
+						name: nodeNameToToolName(this.getNode()),
+						description,
+						// Cross the package boundary with JSON Schema, not a foreign Zod instance.
+						schema: toJsonSchema(inputSchema),
+						func: async (input: IDataObject, runManager) => {
+							const index = runIndex++;
+							// n8n's per-call context records input and resolves From AI expressions.
+							const context = this.cloneWith({ runIndex: index, inputData: [[{ json: input }]] });
+							try {
+								inputSchema.parse(input);
+								const question = z
+									.string()
+									.trim()
+									.min(1, 'Question is required')
+									.parse(context.getNodeParameter('toolQuestion', 0, input.question));
+								const { engine, close } = await createEngine(context, 0);
+								try {
+									const result = await engine.query(question, {
+										callbacks: runManager?.getChild(),
+									});
+									const response = JSON.stringify(result);
+									context.addOutputData(NodeConnectionTypes.AiTool, index, [
+										[{ json: { ...result } }],
+									]);
+									return response;
+								} finally {
+									await close();
+								}
+							} catch (error) {
+								const nodeError = new NodeOperationError(
+									context.getNode(),
+									error instanceof Error ? error : new Error(String(error)),
+									{ functionality: 'configuration-node' },
+								);
+								context.addOutputData(NodeConnectionTypes.AiTool, index, nodeError);
+								throw nodeError;
+							}
+						},
+					}),
+				};
+			}
 			const { engine, close } = await createEngine(this, 0);
 			try {
-				const response =
-					mode === 'retriever'
-						? new FalkorDbRetriever({
-								query: async (question, config) => {
-									const { index } = this.addInputData(NodeConnectionTypes.AiRetriever, [
-										[{ json: { query: question } }],
-									]);
-									try {
-										const result = await engine.query(question, config);
-										this.addOutputData(NodeConnectionTypes.AiRetriever, index, [
-											[{ json: { ...result } }],
-										]);
-										return result;
-									} catch (error) {
-										const nodeError = new NodeOperationError(
-											this.getNode(),
-											error instanceof Error ? error : new Error(String(error)),
-											{ functionality: 'configuration-node' },
-										);
-										this.addOutputData(NodeConnectionTypes.AiRetriever, index, nodeError);
-										throw nodeError;
-									}
-								},
-							})
-						: new DynamicStructuredTool({
-								name: nodeNameToToolName(this.getNode()),
-								description,
-								// n8n normalizes foreign Zod instances as JSON Schema. Cross the package
-								// boundary with plain JSON so the required argument survives normalization.
-								schema: {
-									type: 'object',
-									properties: {
-										question: {
-											type: 'string',
-											minLength: 1,
-											description: 'Natural-language question about the graph',
-										},
-									},
-									required: ['question'],
-									additionalProperties: false,
-								},
-								func: async (input, runManager) => {
-									const { question } = z
-										.object({ question: z.string().trim().min(1) })
-										.parse(input);
-									return JSON.stringify(
-										await engine.query(question, { callbacks: runManager?.getChild() }),
-									);
-								},
-							});
+				const response = new FalkorDbRetriever({
+					query: async (question, config) => {
+						const { index } = this.addInputData(NodeConnectionTypes.AiRetriever, [
+							[{ json: { query: question } }],
+						]);
+						try {
+							const result = await engine.query(question, config);
+							this.addOutputData(NodeConnectionTypes.AiRetriever, index, [
+								[{ json: { ...result } }],
+							]);
+							return result;
+						} catch (error) {
+							const nodeError = new NodeOperationError(
+								this.getNode(),
+								error instanceof Error ? error : new Error(String(error)),
+								{ functionality: 'configuration-node' },
+							);
+							this.addOutputData(NodeConnectionTypes.AiRetriever, index, nodeError);
+							throw nodeError;
+						}
+					},
+				});
 				return { response, closeFunction: close };
 			} catch (error) {
 				await close();

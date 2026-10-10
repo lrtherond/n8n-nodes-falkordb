@@ -34,7 +34,7 @@ The FalkorDB test image is pinned to the 6.0.2 multi-platform digest. Local test
 
 Tests cover separate schema, retrieval guidance, and question forwarding, arbitrary graph traversal, full-text ranking, citations, empty results, server-enforced rejection of generated writes, parameter validation, all three query interfaces, credential testing, and connection cleanup. AI responses are deterministic fixtures; no paid model account is required. These tests validate integration behavior, not real-provider Cypher generation quality.
 
-`test:n8n` installs the packed package into an isolated stable n8n 2.42.6 container. It verifies the exact package contents, separate schema and retrieval guidance expressions, and a Question and Answer Chain retrieving different evidence from the main query with a visible retriever execution trace. It also checks the agent's required question schema and two successive tool calls retrieving different results with citations.
+`test:n8n` installs the packed package into an isolated stable n8n 2.42.6 container. It verifies the exact package contents, separate schema and retrieval guidance expressions, and a Question and Answer Chain retrieving different evidence from the main query with a visible retriever execution trace. It also checks Agent node versions 2.2 and 3, covering direct tool invocation and engine-scheduled execution with existing defaults, named From AI arguments, fixed questions, and expression-based questions. Both paths must deliver graph rows and citations to the parent agent and record each tool call's input, output, and successful execution status.
 
 ## Interactive local n8n
 
@@ -105,6 +105,8 @@ The original [node icon](../nodes/FalkorDb/graph-query.png) was generated with O
 
 Version `2.0.0` is the first stable release of the replacement package. It registers one node with Query, Retriever for Chain, and Tool for AI Agent modes. Existing 1.x memory workflows require rebuilding; workflows using the `2.0.0-dev.0` query node retain their configuration.
 
+Version `2.1.0` adds execution records for directly invoked agent tools and exposes tool inputs through n8n's fixed-value, expression, and From AI controls. Existing 2.0.0 tool workflows retain agent-supplied questions by default.
+
 Validate the release from a clean checkout with Node.js 24 and Docker:
 
 ```sh
@@ -131,4 +133,4 @@ npm publish --access public --tag latest
 npm view @lrtherond/n8n-nodes-falkordb@latest version
 ```
 
-`publishConfig` sets the public npm registry, public access, and the `latest` tag. Publishing 2.0.0 moves `latest` from the old 1.x implementation to the replacement package. Installing a prerelease through `next` does not make n8n's subsequent updates follow that tag; keep stable releases on `latest`. Every later publication requires a new package version. Committing, pushing, and running CI do not publish to npm.
+`publishConfig` sets the public npm registry, public access, and the `latest` tag. Publishing updates `latest` to the version in `package.json`. Installing a prerelease through `next` does not make n8n's subsequent updates follow that tag; keep stable releases on `latest`. Every publication requires a new package version. Committing, pushing, and running CI do not publish to npm.

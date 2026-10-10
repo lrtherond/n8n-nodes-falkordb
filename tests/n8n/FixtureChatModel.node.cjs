@@ -8,7 +8,12 @@ class FixtureModel extends BaseChatModel {
 	}
 	bindTools(tools) {
 		const search = tools.find((tool) => tool.name === 'FalkorDB_Project_Search');
-		if (search?.schema.safeParse({}).success !== false)
+		this.questionArgument = search?.schema.shape.search
+			? 'search'
+			: search?.schema.shape.question
+				? 'question'
+				: undefined;
+		if (this.questionArgument && search.schema.safeParse({}).success !== false)
 			throw new Error('Agent tool schema lost its required question argument');
 		this.tools = tools;
 		return this;
@@ -43,11 +48,14 @@ class FixtureModel extends BaseChatModel {
 		if (text.includes('AGENT_QUESTION')) {
 			const results = messages.filter((message) => message.getType() === 'tool');
 			for (const [index, result] of results.entries()) {
-				const [data] = JSON.parse(result.text);
+				const parsed = JSON.parse(result.text);
+				const data = Array.isArray(parsed) ? parsed[0] : parsed;
 				const expected = index === 0 ? ['Apollo', 'P1'] : ['Zephyr', 'P2'];
 				if (data.rows?.[0]?.text !== expected[0] || data.rows?.[0]?.citation !== expected[1])
 					throw new Error('Agent did not receive graph results');
 			}
+			if (!this.questionArgument && results.length === 1)
+				return finish(new AIMessage('agent used Apollo (P1)'));
 			if (results.length === 2)
 				return finish(new AIMessage('agent used Apollo (P1) and Zephyr (P2)'));
 			const tool = this.tools.find((tool) => tool.name === 'FalkorDB_Project_Search');
@@ -59,10 +67,13 @@ class FixtureModel extends BaseChatModel {
 						{
 							id: `project-lookup-${results.length}`,
 							name: tool.name,
-							args: {
-								question:
-									results.length === 0 ? 'Find projects for Alice' : 'Find projects for Bob',
-							},
+							args: this.questionArgument
+								? {
+										[this.questionArgument]:
+											results.length === 0 ? 'Find projects for Alice' : 'Find projects for Bob',
+										...(this.questionArgument === 'search' ? { resultLimit: 2 } : {}),
+									}
+								: {},
 						},
 					],
 				}),

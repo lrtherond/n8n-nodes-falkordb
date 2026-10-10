@@ -95,13 +95,13 @@ This is an independent community project, not affiliated with, endorsed by, or a
 
 ### Current Development Baseline
 
-The stable 2.0.0 release of `@lrtherond/n8n-nodes-falkordb` registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes. Stable npm publication uses the `latest` tag and remains separate from committing, pushing, and CI.
+The 2.1.0 package of `@lrtherond/n8n-nodes-falkordb` registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes. Stable npm publication uses the `latest` tag and remains separate from committing, pushing, and CI.
 
 - `FalkorDbQuery` defines the n8n UI and wiring, including the credential connection test.
 - `FalkorDbQueryEngine` sends the supplied schema, retrieval guidance, question, and limit to the connected Chat Model. It validates generated Cypher and parameters before read-only execution.
 - `FalkorDbRetriever` turns result rows into LangChain documents while retaining citations and metadata.
 - `FalkorDbApi` configures host, port, optional username/password, and TLS. `FalkorDbClient` connects through the official native client, normally on port `6379`.
-- Database connections must be closed on initialization failure and through n8n's supplied cleanup function.
+- Database connections must be closed on initialization failure, after each query or tool call, and through n8n's supplied cleanup function for retrievers.
 
 See `README.md` for the three query modes, schema and guidance inputs, execution limits, and compatibility. Deterministic model fixtures establish wiring and database behavior; they do not establish real-model Cypher accuracy.
 
@@ -185,6 +185,6 @@ Run checks appropriate to the change and report actual results. Documentation-on
 - Follow the target n8n version's node interfaces and official examples. Read source or documentation when an API is uncertain.
 - Keep parameter names, descriptions, connection types, and documentation metadata consistent with the actual behavior. Update affected documentation and tests alongside implementation changes.
 - Preserve type safety and validate external data at its boundary. Surface actionable errors rather than silently discarding failed extraction or database operations.
-- Use plain JSON Schema for agent-tool arguments crossing the community-package boundary: n8n's Zod instance checks can misclassify a separately installed Zod schema. Validate tool inputs locally too. Record retriever calls with n8n's `addInputData` and `addOutputData`, including failures; LangChain callbacks alone do not create the retriever's execution trace.
+- Expose tool inputs as node parameters supporting fixed values, expressions, and From AI. Tool mode's Question defaults to From AI; derive tool arguments from the configured From AI expressions. Use plain JSON Schema for agent-tool arguments crossing the community-package boundary: n8n's Zod instance checks can misclassify a separately installed Zod schema. Validate tool inputs locally too. Record retriever and direct tool calls, including failures; LangChain callbacks alone do not create n8n execution traces. For direct tools, `cloneWith` records input and gives each invocation its own context for resolving From AI expressions; record its result with `addOutputData`.
 - For build or type errors, inspect the relevant configuration, dependency types, and documented compatibility constraints before changing versions or weakening checks.
 - For missing icons or package files, run the official build and inspect `dist/`, the package manifest, and the package contents.
