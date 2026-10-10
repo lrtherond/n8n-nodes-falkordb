@@ -21,16 +21,14 @@ Use `uvx --from yamllint==1.38.0 yamllint --strict .` to check YAML against `.ya
 
 ## Database integration tests
 
-Docker is required. The test service binds only to localhost, uses a test password, and has no persistent volume.
+Docker with a local Unix-socket context is required. Each command starts the separate `n8n-falkordb-tests` Compose stack and removes it in a `finally` block on success or failure. Run the two commands sequentially.
 
 ```sh
-docker compose -f compose.test.yaml up -d --wait
 npm run test:integration
 npm run test:n8n
-docker compose -f compose.test.yaml down
 ```
 
-Tests use unique graph names and delete only their own graphs. Override `FALKORDB_HOST`, `FALKORDB_PORT`, and `FALKORDB_PASSWORD` to use another test database. Defaults are `127.0.0.1:16379` and password `revival-test-only`.
+Tests use unique graph names in their own local FalkorDB container at `127.0.0.1:16379`, with password `revival-test-only` and data in tmpfs. Database connection overrides (`FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_PASSWORD`) are ignored. Before writing fixtures, tests verify the container identity, loopback binding, and temporary data mount. Remote Docker endpoints are rejected, and Compose commands explicitly select the test project and file without loading `.env` or inheriting `COMPOSE_*` settings. The persistent development FalkorDB/n8n pair and production instances are separate from this stack.
 
 The FalkorDB test image is pinned to the 6.0.2 multi-platform digest. Local tests default to Docker Hub; GitHub CI sets `FALKORDB_TEST_IMAGE` to the identical image in [Google's public Docker Hub cache](https://docs.cloud.google.com/artifact-registry/docs/pull-cached-dockerhub-images) to avoid anonymous Docker Hub pull limits. Cache availability is not guaranteed; the same variable can select another registry containing that digest if needed. Update the version and digest in both `compose.test.yaml` and CI when changing the test image.
 
@@ -116,13 +114,8 @@ Validate the release from a clean checkout with Node.js 24 and Docker:
 ```sh
 npm ci
 npm run check
-(
-  set -e
-  trap 'docker compose -f compose.test.yaml down' EXIT
-  docker compose -f compose.test.yaml up -d --wait
-  npm run test:integration
-  npm run test:n8n
-)
+npm run test:integration
+npm run test:n8n
 npm pack --dry-run
 npm publish --access public --tag latest --dry-run
 ```

@@ -1,3 +1,5 @@
+name: n8n-falkordb-tests
+
 services:
   falkordb:
     image: ${FALKORDB_TEST_IMAGE:-falkordb/falkordb:6.0.2@sha256:107455e862a824e45e8e9f5a7fbfdf5e00a08b14e13eae2577c72fd9e3f59ba6}
@@ -7,6 +9,14 @@ services:
       - /var/lib/falkordb/bin/falkordb.so
       - --requirepass
       - revival-test-only
+      - --dir
+      - /data
+      - --save
+      - ''
+      - --appendonly
+      - 'no'
+    tmpfs:
+      - /data
     ports:
       - 127.0.0.1:16379:6379
     healthcheck:

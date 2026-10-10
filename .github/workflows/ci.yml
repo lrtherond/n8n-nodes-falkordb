@@ -23,10 +23,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: docker compose -f compose.test.yaml up -d --wait
       - run: npm run test:integration
       - if: matrix.node == 24
         run: npm run test:n8n
       - run: npm pack --dry-run
-      - if: always()
-        run: docker compose -f compose.test.yaml down

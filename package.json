@@ -46,10 +46,10 @@
 		"test": "vitest run --project unit",
 		"test:coverage": "vitest run --project unit --coverage",
 		"test:watch": "vitest --project unit",
-		"test:integration": "vitest run --project integration",
+		"test:integration": "node tests/run-docker.mjs integration",
 		"check": "npm run typecheck && npm run lint && npm run lint:markdown && npm run format:check && npm run test:coverage && npm run build",
 		"prepublishOnly": "npm run check",
-		"test:n8n": "npm run build && node tests/n8n/run.mjs"
+		"test:n8n": "npm run build && node tests/run-docker.mjs n8n"
 	},
 	"files": [
 		"dist/credentials",

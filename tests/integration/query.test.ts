@@ -16,11 +16,8 @@ describe('read-only graph query integration', () => {
 	const name = 'Alice"}) DETACH DELETE n //';
 
 	beforeAll(async () => {
-		client = await connectFalkorDb({
-			host: process.env.FALKORDB_HOST ?? '127.0.0.1',
-			port: Number(process.env.FALKORDB_PORT ?? 16379),
-			password: process.env.FALKORDB_PASSWORD ?? 'revival-test-only',
-		});
+		const { testDocker } = await import('../docker.mjs');
+		client = await connectFalkorDb(testDocker().database());
 		projects = client.selectGraph(`n8n_projects_${suffix}`);
 		books = client.selectGraph(`n8n_books_${suffix}`);
 		await projects.query(

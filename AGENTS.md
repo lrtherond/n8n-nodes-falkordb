@@ -170,13 +170,11 @@ npm run check
 For database behavior or n8n integration changes, use the isolated Docker test service:
 
 ```sh
-docker compose -f compose.test.yaml up -d --wait
 npm run test:integration
 npm run test:n8n
-docker compose -f compose.test.yaml down
 ```
 
-Always clean up the test service after testing, including after failures. Tests use unique graph names and remove their own data. Use a dedicated test database when overriding connection settings; see `dev/README.md` for environment variables. Deterministic model fixtures exercise integration behavior without a paid model account; they do not establish real-provider Cypher generation quality.
+Each command starts and cleans up its own local Docker test stack, including after failures. Run them sequentially. Tests verify the dedicated container and use unique graph names. Database connection overrides are ignored; remote Docker endpoints are rejected. Keep tests separate from both the interactive development containers and production; see `dev/README.md`. Deterministic model fixtures exercise integration behavior without a paid model account; they do not establish real-provider Cypher generation quality.
 
 Run checks appropriate to the change and report actual results. Documentation-only edits do not require database tests. For package changes, also inspect `npm pack --dry-run` to confirm the compiled files and assets are included. `prepublishOnly` runs `npm run check`; publication remains a separate release step.
 

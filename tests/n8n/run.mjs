@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FalkorDB } from 'falkordb';
 import { queryWorkflow } from './query-workflow.mjs';
+import { testDocker } from '../docker.mjs';
 
+const docker = testDocker();
+const database = docker.database();
 const directory = mkdtempSync(join(tmpdir(), 'falkordb-n8n-smoke-'));
 const queryGraphName = `n8n_query_smoke_${crypto.randomUUID()}`;
 let client;
@@ -13,8 +16,13 @@ try {
 	// mkdtemp uses 0700; the container's node user can differ from the Linux host user.
 	chmodSync(directory, 0o755);
 	client = await FalkorDB.connect({
-		socket: { host: '127.0.0.1', port: 16379, reconnectStrategy: false, connectTimeout: 5000 },
-		password: 'revival-test-only',
+		socket: {
+			host: database.host,
+			port: database.port,
+			reconnectStrategy: false,
+			connectTimeout: 5000,
+		},
+		password: database.password,
 	});
 	client.on('error', () => {});
 	await client
@@ -54,16 +62,7 @@ try {
 		].sort(),
 		'The package must contain only the current query implementation and its assets',
 	);
-	const output = execFileSync(
-		'docker',
-		['compose', '-f', 'compose.test.yaml', 'run', '--rm', 'n8n-smoke'],
-		{
-			env: { ...process.env, N8N_SMOKE_DIR: directory },
-			encoding: 'utf8',
-			maxBuffer: 10 * 1024 * 1024,
-			stdio: ['ignore', 'pipe', 'pipe'],
-		},
-	);
+	const output = docker.compose(['run', '--rm', 'n8n-smoke'], { N8N_SMOKE_DIR: directory });
 	const { executions } = JSON.parse(
 		output.slice(output.lastIndexOf('\n{\n'), output.lastIndexOf('\n}') + 2),
 	);
