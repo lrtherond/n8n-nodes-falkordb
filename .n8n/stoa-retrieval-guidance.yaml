@@ -1,79 +1,61 @@
-# Local guidance for the Cypher-generating model; keep separate from the graph schema.
-source: /Users/laurent/projects/stoic-kg/schema/schema.yaml
-engine:
-  name: FalkorDB
-  version: 4.20.7
 purpose: >-
-  Retrieve evidence for a conversational Stoic mentor. Answer the specific point in the
-  tool question, not merely its broad topic. Return source text and attribution for the
-  answering agent to evaluate; do not compose the mentor's answer in Cypher.
-inventory:
-  observed_at: '2026-10-09'
-  populated: [Person, School, Work, Passage, Rendering, Concept, Practice, Thesis]
-  guidance: >-
-    Text and doctrinal retrieval are available. All currently observed assertion edges have
-    basis extracted; generated doctrinal nodes have review_status unreviewed. These are
-    dated observations, not permanent restrictions. Read each result's actual provenance.
-    The corpus also contains non-Stoic authors and witnesses. Empty results are valid.
+  Retrieve evidence for a conversational Stoic mentor, addressing the tool question's
+  specific point. Return sources for the answering agent to evaluate, not a prose answer.
 
 retrieval_strategy:
-  - >-
-    For practical questions, use the Rendering.text full-text index. Translate the particular
-    claim or situation into a few discriminating terms, allowing older English wording.
-    Use a small group of alternatives such as anger | wrath, not the whole user message
-    or an indiscriminate list of philosophical topics. Parameters protect Cypher values;
-    they do not turn arbitrary full-text syntax into literal text. Generate simple search
-    expressions rather than copying punctuation or operators from the user's message.
-  - >-
-    For practical text-first retrieval, default to English renderings (lang = en) reporting
-    a Person connected by MEMBER_OF to School named Stoa, with REPORTS.mode own_words or recorded_teaching.
-    This is a retrieval policy, not proof that every sentence expresses a Stoic doctrine.
-    A passage may discuss or quote an opponent; return the context and attribution.
-  - >-
-    Honor explicit author, work, citation, language, and source-criticism requests. For a
-    named teacher, filter the REPORTS voice, not just AUTHORED: a recorder or compiler may
-    be associated with the work. For an explicit witness or non-Stoic source, relax the
-    default school/mode filters while preserving the requested scope and report modes.
-    Do not silently substitute another author when a targeted search has no results.
-  - >-
-    Use Searchable.name/search_text for resolving people, works, concepts, practices, and
-    theses, then stable IDs for exact lookup when supplied. Never invent IDs or citations. Apply all requested
-    language, author, work, and exclusion filters before LIMIT.
-  - >-
-    Use doctrine-first retrieval when the question concerns a teaching, a practice, a
-    proposed remedy, or a relationship between ideas. Resolve a few specific entities;
-    follow incoming DISCUSSES links to passages or relevant assertion edges to their
-    evidence Passage IDs, then retrieve Rendering.text with work and speaker attribution.
-    Start with direct links, not broad multi-hop expansion. Do not return only citations
-    or doctrinal summaries when the caller needs evidence for an answer.
-  - >-
-    For doctrine-linked evidence, retain cited witnesses even when they are not Stoic
-    authors or their REPORTS mode is doxography or paraphrase. Preserve those distinctions
-    rather than applying the practical text-first school/mode filters blindly. Explicit
-    author, language, and work restrictions still apply. A non-Stoic source discussing an
-    idea does not establish that it is Stoic teaching.
-  - >-
+  selection: Choose the first matching route below, based on the requested result.
+  routes:
+    - >-
+      Direct lookup: a request for a specific passage by known ID or citation. Retrieve
+      its rendering without imposing the text-first school or report-mode defaults.
+    - >-
+      Entity resolution: a request only to identify people, works, concepts, practices,
+      or theses and their IDs. Return matching entities for a later evidence lookup.
+    - >-
+      Doctrine-first: a request to inspect a named/resolved teaching or practice and its
+      evidence, or graph claims such as "Which practices are linked as remedies for anger?"
+      Explicit requests for doctrinal evidence or relationships take precedence over
+      practical framing. Resolve the entities, then follow incoming DISCUSSES links or
+      assertion evidence Passage IDs to renderings. Start with direct links; expand
+      only when the question requires it.
+    - >-
+      Text-first: otherwise, practical advice or relevant quotations, such as "How can
+      I manage my anger?" Search Rendering.text for the particular situation or claim;
+      mentioning a philosophical topic alone does not require doctrine-first retrieval.
+  entity_resolution: >-
+    Use Searchable.name/search_text to resolve names and aliases, and exact indexed IDs
+    when supplied. Never invent IDs or citations. Resolution is an intermediate step
+    when the requested result is evidence, not an entity list.
+  text_search: >-
+    Generate a few discriminating terms with older English alternatives, such as
+    anger | wrath. Do not copy the whole question or its punctuation/operators into
+    the search expression: Cypher parameters do not escape full-text query syntax.
+  scope:
+    - >-
+      Honor explicit author, work, citation, language, report-mode, and exclusion filters
+      before LIMIT, including already-seen passage IDs. For a named teacher, filter
+      REPORTS, not just AUTHORED, which may identify a recorder or compiler. Never
+      substitute another author when a targeted search is empty.
+    - >-
+      Only text-first retrieval defaults to English renderings (lang = en) reporting a
+      Person linked by MEMBER_OF to School named Stoa, with REPORTS.mode own_words or
+      recorded_teaching. Explicit witness/non-Stoic requests override these defaults.
+      This policy does not establish doctrinal endorsement: a passage may quote an opponent.
+    - >-
+      Doctrine-linked evidence retains cited witnesses, including non-Stoic sources,
+      doxography, and paraphrase, subject to explicit restrictions. Such a witness
+      discussing an idea does not establish that it is Stoic teaching.
+  ranking: >-
     Normally return three candidates, never exceeding the supplied node limit or a smaller
     requested count. Order full-text results by score descending with stable ID tie-breaks.
-    Scores measure lexical matching, not philosophical relevance or quotation quality;
-    do not fabricate semantic scores. A low score or empty search does not prove that a
-    teaching is absent from the corpus. Reformulating a search is the calling agent's job.
-  - >-
-    Prefer one rendering per passage in the requested language unless translation comparison
-    is requested; prefer extent full when equivalents exist. Aggregate attribution records
-    so relationship fan-out does not duplicate evidence or consume the result limit.
-    Do not merge text from different renderings. If the question supplies already-seen
-    passage IDs, exclude those IDs before ranking/limiting new candidates.
-  - >-
-    Return the entire stored Rendering.text unchanged as context. Do not summarize it,
-    substring it, stitch sentences together, or insert ellipses in Cypher. The answering
-    agent may quote a brief, contiguous, self-contained excerpt of complete sentences;
-    it need not reproduce a whole chapter. Prefer concise evidence when relevance is
-    comparable, but do not discard a relevant long passage solely for its length.
-  - >-
-    Generate one read-only query per call. These workflows provide no query embedding;
-    do not use the catalogue's vector rag-context query, invent vectors, or treat stored
-    document vectors as an embedding of the question. Use full-text search and traversal.
+    Scores measure lexical matching, not philosophical relevance or quotation quality.
+    A low score or empty search does not prove absence of a teaching; reformulation is
+    the calling agent's job. Prefer concise evidence at comparable relevance, without
+    excluding relevant long passages solely for length.
+  renderings: >-
+    Prefer one rendering per passage in the requested language, choosing extent full
+    when equivalents exist, unless translation comparison is requested. Aggregate
+    attribution before returning rows so fan-out does not consume the candidate limit.
 
 doctrinal_provenance:
   - >-
@@ -118,21 +100,15 @@ doctrinal_provenance:
 
 attribution:
   - >-
-    AUTHORED.role distinguishes author, recorder, and compiler. REPORTS.mode distinguishes
-    own_words, recorded_teaching, verbatim_quote, quoted_in_translation, paraphrase,
-    doxography, and hostile_report. Return names and their roles/modes together.
+    Return AUTHORED names/roles and REPORTS names/modes as separate lists of maps.
+    Keep missing attribution absent or null; missing authorship must not suppress a
+    passage. Obtain names, titles, translations, and citations from the graph, never
+    familiarity with a quotation.
   - >-
     A reported philosopher is not necessarily the author or speaker of every sentence.
     Doxography, paraphrase, and hostile reports must not become that philosopher's direct
     quotation. Even verbatim_quote and quoted_in_translation do not identify exact quote
     boundaries within a rendering; retain the whole context for the answering agent.
-  - >-
-    Keep missing attribution absent or null. Do not infer an author from familiarity with
-    a quotation. Work titles, citations, translations, and names must come from the graph.
-  - >-
-    Preserve assertion and extraction provenance whenever doctrinal links are used, not
-    only when explicitly requested. A citation without a retrieved rendering is not
-    quotation text. Keep interpretation fields separate from the original text field.
 
 result_contract:
   passage_fields:
@@ -148,19 +124,23 @@ result_contract:
     - extent
     - translator
     - license
-  score: Include the actual search score only when a search procedure supplies it.
+  text: >-
+    Return the entire stored Rendering.text unchanged, separate from interpretation
+    fields. Do not summarize, substring, stitch renderings together, or insert ellipses.
+    This is source context; the answering agent may quote a shorter contiguous excerpt
+    of complete, self-contained sentences. A citation or entity summary alone is not
+    quotable evidence.
+  score: Include only scores supplied by a search procedure; never invent semantic scores.
   doctrine_context: >-
-    For topic-based retrieval, include the topic's ID, name, interpretation, review status,
-    extraction metadata, and the DISCUSSES link's focus and extraction metadata. A
-    provisional flag means machine-generated or unreviewed, not that the passage is false.
+    Whenever doctrinal links are used, include provenance even if not requested. For
+    topic retrieval, return its ID, name, interpretation, and the node/link metadata
+    specified in doctrinal_provenance, including DISCUSSES.focus. A provisional flag
+    means machine-generated or unreviewed, not that the passage is false.
   assertions: >-
-    For assertion evidence, return a list of maps containing source and target IDs/names,
-    relationship, basis, provisional, stance if present, evidence IDs and available
-    extraction/scholarly provenance. Every returned assertion must cite that row's passage.
-  notes: >-
-    Keep attribution as distinct lists of maps, not ambiguous parallel name/role lists.
-    Missing authorship must not suppress a passage. Entity resolution may return IDs,
-    names, kinds, interpretations, and scores without text; those rows are not quotable evidence.
+    Return a list of maps with source/target IDs and names, relationship, and applicable
+    fields in doctrinal_provenance. Each assertion accompanying evidence text must cite that
+    row's passage. Entity resolution and explicit inventories may return rows without
+    text under the rules above; do not present those as retrieved quotations.
 
 properties:
   Entity: id is the unique string identifier; name is the display name.
@@ -169,34 +149,83 @@ properties:
     Optional name_original, born, died, floruit, stoa_phase, aliases, bio. Dates are signed
     years; aliases is a string array. School affiliation is a MEMBER_OF relationship.
   Work: Optional title_original, abbreviation, cts_urn, extant, aliases.
-  Concept: term, definition; optional term_original, latin, aliases, object_value, time, note.
-  Practice: description and label_origin; optional term_original, coined_by, aliases, note.
+  Concept: Optional term_original, latin, aliases, object_value, time, note.
+  Practice: Optional term_original, coined_by, aliases, note.
   Thesis: statement; optional aliases.
-  doctrinal_nodes: >-
-    Generated Concept, Practice, and Thesis nodes may have review_status, extractor,
-    extracted_at, source_passages, source_renderings, evidence_records, description_record.
   Passage: >-
     citation and ref identify a location; optional cts_urn and concordance (string array).
     Text lives on Rendering, not Passage.
   Rendering: >-
-    lang, text, license, extent; optional translator, edition, embedding, embedding_hash,
-    embedding_model. extent full describes the stored rendering, not a requirement to
-    reproduce all its text in a chat reply. Never return embedding arrays.
+    Optional translator, edition, embedding, embedding_hash, embedding_model.
+    extent full describes the stored rendering, not the length of a chat quotation.
 
 indexes:
   fulltext:
     Searchable: [name, search_text]
     Rendering: [text]
   guidance: >-
-    db.idx.fulltext.queryNodes(label, searchText) yields node and score, higher first.
-    Entity.id supports exact indexed lookup. Vector indexes exist but are unavailable
-    for question retrieval without a compatible externally supplied query embedding.
+    db.idx.fulltext.queryNodes(label, searchText) yields node and score.
+    Entity.id supports exact indexed lookup.
 
 examples:
+  person_by_id:
+    question: >-
+      What are the name, floruit, and Stoa phase of the previously identified person:chrysippus?
+    purpose: Exact entity lookup; returns biographical fields, not quotation evidence.
+    parameters:
+      person_id: person:chrysippus
+      limit: 1
+    cypher: |-
+      MATCH (person:Person {id: $person_id})
+      RETURN person.id AS id, person.name AS name, person.floruit AS floruit,
+             person.stoa_phase AS stoa_phase
+      LIMIT $limit
+
+  people_by_phase:
+    question: List up to three people from the early Stoa phase, ordered by name.
+    purpose: Filter entity properties without a search procedure or relevance score.
+    parameters:
+      phase: early
+      limit: 3
+    cypher: |-
+      MATCH (person:Person)
+      WHERE person.stoa_phase = $phase
+      RETURN person.id AS id, person.name AS name
+      ORDER BY name, id LIMIT $limit
+
+  schools_for_person:
+    question: >-
+      Which schools is the previously identified person:chrysippus a member of?
+      Return up to three, ordered by name.
+    purpose: Follow one structural relationship in its defined direction.
+    parameters:
+      person_id: person:chrysippus
+      limit: 3
+    cypher: |-
+      MATCH (person:Person {id: $person_id})-[:MEMBER_OF]->(school:School)
+      RETURN DISTINCT school.id AS id, school.name AS name
+      ORDER BY name, id LIMIT $limit
+
+  works_for_person:
+    question: >-
+      List up to three works associated with the previously identified person:seneca,
+      ordered by title, and identify his role as author, recorder, or compiler for each.
+    purpose: Return work metadata with explicit authorship roles, without retrieving passages.
+    parameters:
+      person_id: person:seneca
+      limit: 3
+    cypher: |-
+      MATCH (person:Person {id: $person_id})-[auth:AUTHORED]->(work:Work)
+      RETURN work.id AS work_id, work.name AS work_title,
+             collect(DISTINCT {name: person.name, role: auth.role}) AS authorship
+      ORDER BY work_title, work_id LIMIT $limit
+
   stoic_passages:
+    question: >-
+      Find up to three English passages about anger or wrath from Stoic voices in their
+      own words or recorded teaching, with the source text and attribution.
     purpose: >-
-      Default topical retrieval with speaker and work attribution. Add requested filters
-      before the first LIMIT. The text is complete source context, not a mandatory full quote.
+      Text-first search with default scope. Add requested filters before the first LIMIT.
     parameters:
       term: anger | wrath
       language: en
@@ -226,9 +255,11 @@ examples:
       ORDER BY score DESC, passage_id, rendering_id LIMIT $limit
 
   resolve_entity:
+    question: >-
+      Find up to three concepts, practices, or theses matching "anger" and return their
+      IDs for a later evidence lookup.
     purpose: >-
-      Resolve a person, work, concept, practice, or thesis. Choose kinds for the question;
-      names and interpretive summaries are not quotations. Use returned IDs for follow-up.
+      Entity resolution; choose kinds for the question and reuse returned IDs.
     parameters:
       name: anger
       kinds: [Concept, Practice, Thesis]
@@ -244,10 +275,10 @@ examples:
       ORDER BY score DESC, id LIMIT $limit
 
   topic_passages:
+    question: >-
+      Show up to three English passages discussing the previously resolved topic concept:orge.
     purpose: >-
-      Follow a resolved doctrinal entity to source passages, retaining witnesses and
-      provisional indexing metadata. An interpretation is not the passage's text.
-      This lookup has no relevance score; IDs provide stable ordering within the topic.
+      Doctrine-first retrieval through DISCUSSES, ordered by stable IDs without a relevance score.
     parameters:
       topic_id: concept:orge
       language: en
@@ -284,12 +315,13 @@ examples:
       ORDER BY passage_id, rendering_id LIMIT $limit
 
   assertion_evidence:
+    question: >-
+      For the previously resolved passion concept:orge, show up to three English evidence
+      passages for proposed remedies, including unreviewed extracted claims and their provenance.
     purpose: >-
-      Retrieve proposed remedies for a resolved passion and the passages cited by each
-      assertion. Adapt relationship_types to the question (for example APPLIES or HOLDS);
-      preserve relationship direction and stance. Explicitly include extracted for
-      exploratory retrieval, never as certified doctrine. This is a direct-neighbor
-      lookup with stable passage ordering, not a semantic ranking.
+      Doctrine-first retrieval through assertion evidence. Adapt relationship_types
+      (for example APPLIES or HOLDS) to the question. Direct neighbors use stable passage
+      ordering, not a semantic ranking.
     parameters:
       topic_id: concept:orge
       relationship_types: [REMEDIES]
@@ -328,9 +360,11 @@ examples:
       ORDER BY passage_id, rendering_id LIMIT $limit
 
   passage_by_id:
+    question: >-
+      Fetch one English rendering of passage:gs:91 returned by an earlier search,
+      with its citation and attribution.
     purpose: >-
-      Fetch a known passage using an ID returned by a previous retrieval. This explicit
-      lookup preserves its provenance without imposing the default school or report modes.
+      Direct passage lookup with no default school or report-mode filters.
     parameters:
       passage_id: passage:gs:91
       language: en
@@ -354,8 +388,12 @@ examples:
       ORDER BY CASE extent WHEN 'full' THEN 0 ELSE 1 END, rendering_id LIMIT $limit
 
 engine_constraints:
-  - Generate read-only FalkorDB openCypher with parameterized question values.
+  - Generate one read-only FalkorDB openCypher query with parameterized question values per call.
   - Use bounded variable-length traversals; avoid graph-wide scans for ordinary text searches.
   - Do not use APOC, CALL subqueries, or Neo4j-specific search procedures.
   - Do not alias a returned column with a variable name subsequently used by ORDER BY.
-  - Keep LIMIT at or below the supplied node limit; do not invent results for empty queries.
+  - Empty results are valid; do not invent results.
+  - >-
+    No query embedding is supplied. Use full-text search and traversal rather than
+    vector search; do not invent vectors or substitute stored document vectors
+    for a question embedding. Never return embedding arrays.

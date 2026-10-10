@@ -95,7 +95,7 @@ This is an independent community project, not affiliated with, endorsed by, or a
 
 ### Current Development Baseline
 
-The 2.1.0 package of `@lrtherond/n8n-nodes-falkordb` registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes. Stable npm publication uses the `latest` tag and remains separate from committing, pushing, and CI.
+The 2.1.1 package of `@lrtherond/n8n-nodes-falkordb` registers only FalkorDB Graph Query. One node supplies the Query, Retriever for Chain, and Tool for AI Agent modes. Stable npm publication uses the `latest` tag and remains separate from committing, pushing, and CI.
 
 - `FalkorDbQuery` defines the n8n UI and wiring, including the credential connection test.
 - `FalkorDbQueryEngine` sends the supplied schema, retrieval guidance, question, and limit to the connected Chat Model. It validates generated Cypher and parameters before read-only execution.

@@ -1,6 +1,6 @@
 # n8n-nodes-falkordb
 
-Version 2.1.0 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
+Version 2.1.1 of `@lrtherond/n8n-nodes-falkordb`: schema-guided graph querying and RAG for self-hosted n8n.
 
 This is an independent community project. It is not affiliated with, endorsed by, or authorized by the makers of FalkorDB. The database name identifies compatibility; the node uses original artwork.
 
@@ -13,14 +13,14 @@ Version 2 is a complete replacement for the published 1.x package. It provides t
 On a compatible self-hosted n8n instance, sign in as an owner or administrator:
 
 1. Open **Settings → Community Nodes → Install**.
-2. Enter `@lrtherond/n8n-nodes-falkordb@2.1.0` to install this release explicitly.
+2. Enter `@lrtherond/n8n-nodes-falkordb@2.1.1` to install this release explicitly.
 3. Review the installation confirmation and select **Install**.
 
 The package installs **one node type, FalkorDB Graph Query, with three modes**: Query, Retriever for Chain, and Tool for AI Agent. Seeing “1 node” in the package list is expected. Add separate instances to your workflows and choose the mode each instance needs.
 
 Stable releases use npm's `latest` tag. Entering `@lrtherond/n8n-nodes-falkordb` without a version installs that release channel. See [n8n's community-node installation and update instructions](https://docs.n8n.io/integrations/community-nodes/installation-and-management/gui-installation/).
 
-Workflows created with `2.0.0-dev.0` or `2.0.0` retain their configuration in 2.1.0. Existing tool workflows default the new **Question** field to **From AI**. The breaking change from 1.x described above still applies to older workflows.
+Workflows created with `2.0.0-dev.0` or `2.0.0` retain their configuration in 2.1.1. Existing tool workflows default the new **Question** field to **From AI**. The breaking change from 1.x described above still applies to older workflows.
 
 ## Query an existing graph
 
@@ -88,7 +88,7 @@ Credentials support an optional ACL username/password and TLS with certificate v
 
 ## Compatibility
 
-Version 2.1.0 is tested with n8n 2.42.6 and FalkorDB server 6.0.2, with isolated test graphs. Earlier 2.0.0 validation also covered FalkorDB server 4.20.7. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
+Version 2.1.1 is tested with n8n 2.42.6 and FalkorDB server 6.0.2, with isolated test graphs. Earlier 2.0.0 validation also covered FalkorDB server 4.20.7. The packaged n8n smoke test uses server 6.0.2. The package requires `n8n-workflow >=2.42.3 <3`. Compatibility with older n8n releases is not claimed.
 
 This package targets self-hosted n8n. n8n Cloud support is not established. Node.js 24 or newer is required.
 

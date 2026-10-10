@@ -1,6 +1,6 @@
 {
 	"name": "@lrtherond/n8n-nodes-falkordb",
-	"version": "2.1.0",
+	"version": "2.1.1",
 	"description": "Independent n8n integration for schema-guided natural-language queries and RAG with FalkorDB",
 	"keywords": [
 		"n8n-community-node-package",

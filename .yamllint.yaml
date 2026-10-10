@@ -1,0 +1,24 @@
+extends: default
+
+# Include local .n8n files, but skip dependencies and build output.
+ignore: |
+  .git/
+  node_modules/
+  dist/
+  coverage/
+
+rules:
+  document-start: disable
+  # Preserve long Cypher examples, image digests, and the upstream schema layout.
+  line-length: disable
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  # The upstream schema aligns mapping values and inline relationship fields.
+  colons:
+    max-spaces-after: -1
+  commas:
+    max-spaces-after: -1
+  # GitHub Actions uses the unquoted mapping key "on".
+  truthy:
+    check-keys: false

@@ -17,6 +17,8 @@ npm run dev
 
 Use `npm run lint:markdown` to check project Markdown against `.markdownlint.jsonc`. Tables require aligned columns and outer pipes; `npm run format` formats them with Prettier. Markdown checks exclude dependencies and generated output.
 
+Use `uvx --from yamllint==1.38.0 yamllint --strict .` to check YAML against `.yamllint.yaml`. This includes local `.n8n` inputs and excludes dependencies and generated output.
+
 ## Database integration tests
 
 Docker is required. The test service binds only to localhost, uses a test password, and has no persistent volume.
@@ -106,6 +108,8 @@ The original [node icon](../nodes/FalkorDb/graph-query.png) was generated with O
 Version `2.0.0` is the first stable release of the replacement package. It registers one node with Query, Retriever for Chain, and Tool for AI Agent modes. Existing 1.x memory workflows require rebuilding; workflows using the `2.0.0-dev.0` query node retain their configuration.
 
 Version `2.1.0` adds execution records for directly invoked agent tools and exposes tool inputs through n8n's fixed-value, expression, and From AI controls. Existing 2.0.0 tool workflows retain agent-supplied questions by default.
+
+Version `2.1.1` streamlines the Stoic retrieval guidance, adds simpler query examples validated against the local `stoa` graph, and adds YAML lint configuration. The node's runtime behavior is unchanged.
 
 Validate the release from a clean checkout with Node.js 24 and Docker:
 
